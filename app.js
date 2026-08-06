@@ -114,7 +114,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
   if (participants.length === 0) return;
 
   const newEvent = {
-    date: clean(form.get("date")),
+    date: normalizeDateInput(form.get("date")),
     time: clean(form.get("time")),
     sport: clean(form.get("sport")),
     total: Number(form.get("total")),
@@ -434,7 +434,7 @@ function renderHistory() {
         <article class="event-card">
           <div class="event-main">
             <div class="event-title">
-              <span class="event-date">${escapeHtml(event.date)}</span>
+              <span class="event-date">${escapeHtml(formatEventDate(event.date))}</span>
               <span class="event-time">${escapeHtml(event.time)}</span>
               <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
             </div>
@@ -541,11 +541,46 @@ function compareEventsByRecentDate(a, b) {
 
 function parseEventDate(value) {
   const text = String(value || "");
-  const match = text.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
-  if (!match) return 0;
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  return month * 100 + day;
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return Number(`${isoMatch[1]}${isoMatch[2]}${isoMatch[3]}`);
+
+  const slashMatch = text.match(/(?:(\d{4})\s*[/-]\s*)?(\d{1,2})\s*[/-]\s*(\d{1,2})/);
+  if (!slashMatch) return 0;
+  const year = Number(slashMatch[1] || new Date().getFullYear());
+  const month = Number(slashMatch[2]);
+  const day = Number(slashMatch[3]);
+  return Number(`${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`);
+}
+
+function normalizeDateInput(value) {
+  const text = clean(value);
+  const parsed = dateParts(text);
+  if (!parsed) return text;
+  return `${parsed.year}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+}
+
+function formatEventDate(value) {
+  const parsed = dateParts(value);
+  if (!parsed) return clean(value);
+  const date = new Date(parsed.year, parsed.month - 1, parsed.day);
+  const weekday = ["日", "一", "二", "三", "四", "五", "六"][date.getDay()];
+  return `${parsed.year}/${String(parsed.month).padStart(2, "0")}/${String(parsed.day).padStart(2, "0")}（週${weekday}）`;
+}
+
+function dateParts(value) {
+  const text = clean(value);
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return { year: Number(isoMatch[1]), month: Number(isoMatch[2]), day: Number(isoMatch[3]) };
+  }
+
+  const slashMatch = text.match(/(?:(\d{4})\s*[/-]\s*)?(\d{1,2})\s*[/-]\s*(\d{1,2})/);
+  if (!slashMatch) return null;
+  return {
+    year: Number(slashMatch[1] || new Date().getFullYear()),
+    month: Number(slashMatch[2]),
+    day: Number(slashMatch[3]),
+  };
 }
 
 function perPerson(event) {

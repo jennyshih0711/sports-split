@@ -333,7 +333,7 @@ button {
 
 .event-fields-row {
   display: grid;
-  grid-template-columns: minmax(118px, 0.9fr) minmax(96px, 0.8fr) minmax(126px, 1fr) minmax(104px, 0.8fr) minmax(126px, 1fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(96px, 0.7fr) minmax(126px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
   gap: 8px;
   align-items: end;
 }
