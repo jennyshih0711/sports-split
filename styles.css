@@ -158,6 +158,13 @@ button {
   margin-top: 14px;
 }
 
+.settlement-note {
+  margin: -6px 0 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .settlement-summary article {
   padding: 14px;
   background: #f8fbf8;
@@ -337,7 +344,7 @@ button {
 
 .event-fields-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(96px, 0.7fr) minmax(126px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
+  grid-template-columns: minmax(146px, 1fr) minmax(84px, 0.55fr) minmax(84px, 0.55fr) minmax(120px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
   gap: 8px;
   align-items: end;
 }
@@ -525,14 +532,24 @@ select:focus {
 
 .event-view {
   display: grid;
-  grid-template-columns: minmax(210px, 0.95fr) auto minmax(320px, 1.35fr) auto;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: auto minmax(240px, 1fr) minmax(168px, auto) auto;
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.event-flag {
+  min-width: 74px;
 }
 
 .event-card.editing {
   background: #fbfcfb;
   border-color: #a9d9bc;
+}
+
+.event-card.is-upcoming {
+  background: #fffaf0;
+  border-color: #edc879;
+  box-shadow: inset 4px 0 0 #f2c14e;
 }
 
 .event-title {
@@ -582,6 +599,21 @@ select:focus {
   border: 1px solid rgba(181, 137, 28, 0.28);
 }
 
+.upcoming-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  color: #8a5c00;
+  background: #fff1c7;
+  border: 1px solid #edc879;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .event-meta {
   color: var(--muted);
   font-size: 0.78rem;
@@ -619,7 +651,8 @@ select:focus {
 
 .participant-editor {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  grid-column: 2 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 5px;
   margin-top: 0;
 }
@@ -684,6 +717,9 @@ select:focus {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 88px;
 }
 
 .event-actions .edit-event-button {
@@ -701,7 +737,7 @@ select:focus {
 
 .event-edit-fields {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(96px, 0.7fr) minmax(126px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
+  grid-template-columns: minmax(146px, 1fr) minmax(84px, 0.55fr) minmax(84px, 0.55fr) minmax(120px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
   gap: 8px;
   align-items: end;
 }

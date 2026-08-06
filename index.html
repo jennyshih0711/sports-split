@@ -30,6 +30,7 @@
             </div>
             <span class="pill" id="settlementCount">0 筆</span>
           </div>
+          <p class="settlement-note">付款金額僅結算至今日已完成運動的場次</p>
           <div id="settlementList" class="settlement-list"></div>
           <div class="settlement-summary">
             <article>
@@ -60,8 +61,12 @@
                 <input name="date" type="date" required />
                 </label>
                 <label>
-                時間
-                <input name="time" placeholder="18-20" required />
+                開始時間
+                <select name="startTime" required></select>
+                </label>
+                <label>
+                結束時間
+                <select name="endTime" required></select>
                 </label>
                 <label>
                 項目
