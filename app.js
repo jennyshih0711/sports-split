@@ -716,33 +716,48 @@ function getSportType(sport) {
 }
 
 function calculateSettlement() {
-  const debts = new Map();
+  const balances = new Map();
   state.events.forEach((event) => {
     const share = perPerson(event);
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
       .forEach((person) => {
-        const key = `${person.name}|||${event.payer}`;
-        debts.set(key, (debts.get(key) || 0) + share);
+        balances.set(person.name, roundMoney((balances.get(person.name) || 0) - share));
+        balances.set(event.payer, roundMoney((balances.get(event.payer) || 0) + share));
       });
   });
 
-  const people = [...new Set(state.people.concat(state.events.flatMap((event) => [event.payer, ...event.participants.map((person) => person.name)])))];
-  const transfers = [];
+  const payers = [];
+  const receivers = [];
+  balances.forEach((amount, name) => {
+    const rounded = roundMoney(amount);
+    if (rounded < 0) payers.push({ name, amount: Math.abs(rounded) });
+    if (rounded > 0) receivers.push({ name, amount: rounded });
+  });
 
-  for (let i = 0; i < people.length; i += 1) {
-    for (let j = i + 1; j < people.length; j += 1) {
-      const a = people[i];
-      const b = people[j];
-      const aOwesB = debts.get(`${a}|||${b}`) || 0;
-      const bOwesA = debts.get(`${b}|||${a}`) || 0;
-      const diff = roundMoney(Math.abs(aOwesB - bOwesA));
-      if (diff <= 0) continue;
-      transfers.push(aOwesB > bOwesA ? { from: a, to: b, amount: diff } : { from: b, to: a, amount: diff });
+  payers.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "zh-Hant"));
+  receivers.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "zh-Hant"));
+
+  const transfers = [];
+  let payerIndex = 0;
+  let receiverIndex = 0;
+
+  while (payerIndex < payers.length && receiverIndex < receivers.length) {
+    const payer = payers[payerIndex];
+    const receiver = receivers[receiverIndex];
+    const amount = roundMoney(Math.min(payer.amount, receiver.amount));
+
+    if (amount > 0) {
+      transfers.push({ from: payer.name, to: receiver.name, amount });
+      payer.amount = roundMoney(payer.amount - amount);
+      receiver.amount = roundMoney(receiver.amount - amount);
     }
+
+    if (payer.amount <= 0) payerIndex += 1;
+    if (receiver.amount <= 0) receiverIndex += 1;
   }
 
-  return transfers.sort((a, b) => b.amount - a.amount || a.from.localeCompare(b.from, "zh-Hant"));
+  return transfers;
 }
 
 function compareEventsByRecentDate(a, b) {
