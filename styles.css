@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -512,14 +516,23 @@ select:focus {
 }
 
 .event-card {
-  display: grid;
-  grid-template-columns: minmax(210px, 0.95fr) auto minmax(320px, 1.35fr) auto;
-  gap: 10px;
-  align-items: center;
+  display: block;
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
+}
+
+.event-view {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.95fr) auto minmax(320px, 1.35fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.event-card.editing {
+  background: #fbfcfb;
+  border-color: #a9d9bc;
 }
 
 .event-title {
@@ -669,13 +682,86 @@ select:focus {
 
 .event-actions {
   display: flex;
+  gap: 6px;
   justify-content: flex-end;
+}
+
+.event-actions .edit-event-button {
+  color: var(--blue);
+  background: #eaf1f7;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+
+.event-edit-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.event-edit-fields {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(96px, 0.7fr) minmax(126px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.event-edit-fields label {
+  gap: 5px;
+  font-size: 0.8rem;
+}
+
+.event-edit-fields input,
+.event-edit-fields select {
+  min-height: 34px;
+  padding: 0 9px;
+  font-size: 0.86rem;
+}
+
+.event-edit-participants {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 6px;
+  max-height: 178px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.event-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.event-edit-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.save-event-button {
+  color: white;
+  background: var(--green);
+}
+
+.save-event-button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.cancel-event-button {
+  color: var(--muted);
+  background: #edf0ec;
 }
 
 @media (max-width: 840px) {
   .summary-band,
   .events-grid,
-  .event-card {
+  .event-view {
     grid-template-columns: 1fr;
   }
 
@@ -693,6 +779,10 @@ select:focus {
   }
 
   .event-fields-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .event-edit-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -718,6 +808,7 @@ select:focus {
   .kpi-grid,
   .form-grid,
   .event-fields-row,
+  .event-edit-fields,
   .settlement-summary,
   .participant-row,
   .person-chip,

@@ -241,6 +241,11 @@ async function updateEventParticipants(eventId, participants) {
   if (error) throw error;
 }
 
+async function updateEvent(eventId, changes) {
+  const { error } = await db.from("events").update(changes).eq("id", eventId);
+  if (error) throw error;
+}
+
 async function deleteEvent(eventId) {
   const { error } = await db.from("events").delete().eq("id", eventId);
   if (error) throw error;
@@ -519,44 +524,153 @@ function renderHistory() {
       const paidCount = event.participants.filter((person) => person.status === "paid").length;
       const unpaidCount = event.participants.length - paidCount;
       const sportType = getSportType(event.sport);
+      const editorPeople = [...new Set(state.people.concat(event.payer, event.participants.map((person) => person.name)).filter(Boolean))];
       return `
-        <article class="event-card">
-          <div class="event-main">
-            <div class="event-title">
-              <span class="event-date">${escapeHtml(formatEventDate(event.date))}</span>
-              <span class="event-time">${escapeHtml(event.time)}</span>
-              <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
+        <article class="event-card" data-event-row="${event.id}">
+          <div class="event-view">
+            <div class="event-main">
+              <div class="event-title">
+                <span class="event-date">${escapeHtml(formatEventDate(event.date))}</span>
+                <span class="event-time">${escapeHtml(event.time)}</span>
+                <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
+              </div>
+              <div class="event-meta">
+                總費用 ${money(event.total)} · ${event.participants.length} 人 · 每人 ${money(perPerson(event))} · 付款人 ${escapeHtml(event.payer)}
+              </div>
             </div>
-            <div class="event-meta">
-              總費用 ${money(event.total)} · ${event.participants.length} 人 · 每人 ${money(perPerson(event))} · 付款人 ${escapeHtml(event.payer)}
+            <div class="event-status-summary">
+              <span class="status-count paid">${paidCount} 已付款</span>
+              <span class="status-count unpaid">${unpaidCount} 未付款</span>
+            </div>
+            <div class="participant-editor">
+              ${event.participants
+                .map(
+                  (person) => `
+                    <label class="status-control ${person.status === "paid" ? "is-paid" : "is-unpaid"} ${person.name === event.payer ? "is-payer" : ""}">
+                      <span>${escapeHtml(person.name)}</span>
+                      <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer ? "disabled" : ""}>
+                        <option value="paid" ${person.status === "paid" ? "selected" : ""}>已付款</option>
+                        <option value="unpaid" ${person.status === "unpaid" ? "selected" : ""}>未付款</option>
+                      </select>
+                    </label>
+                  `,
+                )
+                .join("")}
+            </div>
+            <div class="event-actions">
+              <button class="edit-event-button" type="button" data-edit-event="${event.id}">編輯</button>
+              <button type="button" data-remove-event="${event.id}">刪除</button>
             </div>
           </div>
-          <div class="event-status-summary">
-            <span class="status-count paid">${paidCount} 已付款</span>
-            <span class="status-count unpaid">${unpaidCount} 未付款</span>
-          </div>
-          <div class="participant-editor">
-            ${event.participants
-              .map(
-                (person) => `
-                  <label class="status-control ${person.status === "paid" ? "is-paid" : "is-unpaid"} ${person.name === event.payer ? "is-payer" : ""}">
-                    <span>${escapeHtml(person.name)}</span>
-                    <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer ? "disabled" : ""}>
-                      <option value="paid" ${person.status === "paid" ? "selected" : ""}>已付款</option>
-                      <option value="unpaid" ${person.status === "unpaid" ? "selected" : ""}>未付款</option>
-                    </select>
-                  </label>
-                `,
-              )
-              .join("")}
-          </div>
-          <div class="event-actions">
-            <button type="button" data-remove-event="${event.id}">刪除</button>
+          <div class="event-edit-panel" hidden>
+            <div class="event-edit-fields">
+              <label>日期<input type="date" data-edit-date value="${escapeHtml(normalizeDateInput(event.date))}" /></label>
+              <label>時間<input data-edit-time value="${escapeHtml(event.time)}" /></label>
+              <label>項目<input data-edit-sport list="sportOptions" value="${escapeHtml(event.sport)}" /></label>
+              <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
+              <label>付款人
+                <select data-edit-payer>
+                  ${editorPeople.map((name) => `<option value="${escapeHtml(name)}" ${name === event.payer ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+                </select>
+              </label>
+            </div>
+            <div class="row-title">參加者與付款狀態</div>
+            <div class="event-edit-participants">
+              ${editorPeople
+                .map((name) => {
+                  const participant = event.participants.find((person) => person.name === name);
+                  const checked = Boolean(participant);
+                  const status = participant?.status || "unpaid";
+                  return `
+                    <div class="participant-row">
+                      <label class="check-label">
+                        <input type="checkbox" data-edit-participant="${escapeHtml(name)}" ${checked ? "checked" : ""} />
+                        <span>${escapeHtml(name)}</span>
+                      </label>
+                      <select data-edit-status="${escapeHtml(name)}">
+                        <option value="unpaid" ${status === "unpaid" ? "selected" : ""}>未付款</option>
+                        <option value="paid" ${status === "paid" ? "selected" : ""}>已付款</option>
+                      </select>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+            <div class="event-edit-actions">
+              <button class="save-event-button" type="button" data-save-event="${event.id}">儲存</button>
+              <button class="cancel-event-button" type="button" data-cancel-event="${event.id}">取消</button>
+            </div>
           </div>
         </article>
       `;
     })
     .join("");
+
+  elements.historyList.querySelectorAll("[data-edit-event]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setEventEditMode(button.closest(".event-card"), true);
+    });
+  });
+
+  elements.historyList.querySelectorAll("[data-cancel-event]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setEventEditMode(button.closest(".event-card"), false);
+    });
+  });
+
+  elements.historyList.querySelectorAll("[data-edit-payer]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const row = select.closest(".event-card");
+      const checkbox = [...(row?.querySelectorAll("[data-edit-participant]") || [])].find((item) => item.dataset.editParticipant === select.value);
+      const status = [...(row?.querySelectorAll("[data-edit-status]") || [])].find((item) => item.dataset.editStatus === select.value);
+      if (checkbox) checkbox.checked = true;
+      if (status) status.value = "paid";
+    });
+  });
+
+  elements.historyList.querySelectorAll("[data-save-event]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const row = button.closest(".event-card");
+      const payer = clean(row.querySelector("[data-edit-payer]")?.value);
+      const participants = [...row.querySelectorAll("[data-edit-participant]")]
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => {
+          const name = checkbox.dataset.editParticipant;
+          const status = [...row.querySelectorAll("[data-edit-status]")].find((item) => item.dataset.editStatus === name)?.value || "unpaid";
+          return { name, status: name === payer ? "paid" : status };
+        });
+
+      if (payer && !participants.some((person) => person.name === payer)) {
+        participants.unshift({ name: payer, status: "paid" });
+      }
+      if (!participants.length) {
+        alert("至少要選擇一位參加者");
+        return;
+      }
+
+      const changes = {
+        date: normalizeDateInput(row.querySelector("[data-edit-date]")?.value),
+        time: clean(row.querySelector("[data-edit-time]")?.value),
+        sport: clean(row.querySelector("[data-edit-sport]")?.value),
+        total: Number(row.querySelector("[data-edit-total]")?.value || 0),
+        payer,
+        participants,
+      };
+      if (!changes.date || !changes.time || !changes.sport || !changes.payer) {
+        alert("日期、時間、項目和付款人都要填寫");
+        return;
+      }
+
+      try {
+        button.disabled = true;
+        await updateEvent(button.dataset.saveEvent, changes);
+        await loadCloudData();
+      } catch (error) {
+        alert(`更新場次失敗：${error.message}`);
+        button.disabled = false;
+      }
+    });
+  });
 
   elements.historyList.querySelectorAll("[data-remove-event]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -585,6 +699,14 @@ function renderHistory() {
       }
     });
   });
+
+}
+
+function setEventEditMode(row, isEditing) {
+  if (!row) return;
+  row.classList.toggle("editing", isEditing);
+  row.querySelector(".event-view").hidden = isEditing;
+  row.querySelector(".event-edit-panel").hidden = !isEditing;
 }
 
 function getSportType(sport) {
