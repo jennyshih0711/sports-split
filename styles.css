@@ -49,11 +49,11 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
-  min-height: 132px;
+  min-height: 168px;
   padding: 30px;
   color: white;
   background:
-    linear-gradient(rgba(31, 42, 40, 0.55), rgba(31, 42, 40, 0.48)),
+    linear-gradient(90deg, rgba(31, 42, 40, 0.68) 0%, rgba(31, 42, 40, 0.42) 42%, rgba(31, 42, 40, 0.18) 100%),
     url("assets/sports-hero.png") center center / cover;
   border-radius: 8px;
   box-shadow: var(--shadow);
