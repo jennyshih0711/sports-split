@@ -54,7 +54,7 @@ button {
   color: white;
   background:
     linear-gradient(rgba(31, 42, 40, 0.55), rgba(31, 42, 40, 0.48)),
-    url("https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1800&q=80") center 42% / cover;
+    url("assets/sports-hero.png") center center / cover;
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
@@ -425,21 +425,47 @@ select:focus {
 
 .inline-form {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  margin-bottom: 14px;
+  grid-template-columns: minmax(180px, 320px) 96px;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.inline-form input {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.inline-form .primary-button {
+  min-height: 36px;
 }
 
 .person-chip {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 36px;
-  padding: 0 10px;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px;
   background: #f5f7f4;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.person-chip.editing {
+  grid-template-columns: minmax(120px, 1fr) auto auto auto;
+}
+
+.person-name {
+  padding: 0 8px;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.person-chip input {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 0.9rem;
 }
 
 .person-chip button,
@@ -447,6 +473,42 @@ select:focus {
   color: var(--red);
   background: transparent;
   font-weight: 800;
+}
+
+.person-chip button {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.person-chip .save-person-button {
+  color: white;
+  background: var(--green);
+}
+
+.person-chip .edit-person-button {
+  color: var(--blue);
+  background: #eaf1f7;
+}
+
+.person-chip .cancel-person-button {
+  color: var(--muted);
+  background: #edf0ec;
+}
+
+.person-chip .save-person-button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.person-chip .remove-person-button {
+  color: var(--red);
+}
+
+.people-list {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 8px;
 }
 
 .event-card {
@@ -658,6 +720,8 @@ select:focus {
   .event-fields-row,
   .settlement-summary,
   .participant-row,
+  .person-chip,
+  .person-chip.editing,
   .inline-form {
     grid-template-columns: 1fr;
   }

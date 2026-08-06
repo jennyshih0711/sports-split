@@ -251,6 +251,33 @@ async function deletePerson(name) {
   if (error) throw error;
 }
 
+async function renamePerson(oldName, newName) {
+  const from = clean(oldName);
+  const to = clean(newName);
+  if (!from || !to || from === to) return;
+  if (state.people.includes(to)) {
+    throw new Error(`${to} 已存在，請使用不同名稱`);
+  }
+
+  const peopleUpdate = await db.from("people").update({ name: to }).eq("name", from);
+  if (peopleUpdate.error) throw peopleUpdate.error;
+
+  const affectedEvents = state.events
+    .map((event) => {
+      const payer = event.payer === from ? to : event.payer;
+      const participants = event.participants.map((person) => (person.name === from ? { ...person, name: to } : person));
+      const changed = payer !== event.payer || participants.some((person, index) => person.name !== event.participants[index].name);
+      return changed ? { id: event.id, payer, participants } : null;
+    })
+    .filter(Boolean);
+
+  const updates = await Promise.all(
+    affectedEvents.map((event) => db.from("events").update({ payer: event.payer, participants: event.participants }).eq("id", event.id)),
+  );
+  const failedUpdate = updates.find((result) => result.error);
+  if (failedUpdate) throw failedUpdate.error;
+}
+
 async function clearCloudData() {
   const eventDelete = await db.from("events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
   if (eventDelete.error) throw eventDelete.error;
@@ -391,13 +418,63 @@ function renderPeople() {
   elements.peopleList.innerHTML = state.people
     .map(
       (name) => `
-        <div class="person-chip">
-          <span>${escapeHtml(name)}</span>
-          <button type="button" data-remove-person="${escapeHtml(name)}" aria-label="移除 ${escapeHtml(name)}">×</button>
+        <div class="person-chip" data-person-row="${escapeHtml(name)}">
+          <span class="person-name">${escapeHtml(name)}</span>
+          <input class="person-edit-input" value="${escapeHtml(name)}" data-person-input="${escapeHtml(name)}" aria-label="編輯 ${escapeHtml(name)}" hidden />
+          <button class="edit-person-button" type="button" data-edit-person="${escapeHtml(name)}">編輯</button>
+          <button class="save-person-button" type="button" data-save-person="${escapeHtml(name)}" hidden>儲存</button>
+          <button class="cancel-person-button" type="button" data-cancel-person="${escapeHtml(name)}" hidden>取消</button>
+          <button class="remove-person-button" type="button" data-remove-person="${escapeHtml(name)}" aria-label="移除 ${escapeHtml(name)}">刪除</button>
         </div>
       `,
     )
     .join("");
+
+  elements.peopleList.querySelectorAll("[data-edit-person]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = button.closest(".person-chip");
+      setPersonEditMode(row, true);
+    });
+  });
+
+  elements.peopleList.querySelectorAll("[data-cancel-person]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = button.closest(".person-chip");
+      const input = row?.querySelector("[data-person-input]");
+      if (input) input.value = button.dataset.cancelPerson;
+      setPersonEditMode(row, false);
+    });
+  });
+
+  elements.peopleList.querySelectorAll("[data-save-person]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const oldName = button.dataset.savePerson;
+      const input = button.closest(".person-chip")?.querySelector("[data-person-input]");
+      const newName = clean(input?.value);
+      if (!newName) {
+        alert("姓名不能空白");
+        return;
+      }
+      if (newName === oldName) return;
+      try {
+        button.disabled = true;
+        await renamePerson(oldName, newName);
+        await loadCloudData();
+      } catch (error) {
+        alert(`更新姓名失敗：${error.message}`);
+        button.disabled = false;
+      }
+    });
+  });
+
+  elements.peopleList.querySelectorAll("[data-person-input]").forEach((input) => {
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const button = input.closest(".person-chip")?.querySelector("[data-save-person]");
+      button?.click();
+    });
+  });
 
   elements.peopleList.querySelectorAll("[data-remove-person]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -412,6 +489,17 @@ function renderPeople() {
       }
     });
   });
+}
+
+function setPersonEditMode(row, isEditing) {
+  if (!row) return;
+  row.classList.toggle("editing", isEditing);
+  row.querySelector(".person-name").hidden = isEditing;
+  row.querySelector(".person-edit-input").hidden = !isEditing;
+  row.querySelector(".edit-person-button").hidden = isEditing;
+  row.querySelector(".save-person-button").hidden = !isEditing;
+  row.querySelector(".cancel-person-button").hidden = !isEditing;
+  if (isEditing) row.querySelector(".person-edit-input").focus();
 }
 
 function renderHistory() {

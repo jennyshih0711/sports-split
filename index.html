@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>運動分帳</title>
+    <link rel="icon" href="assets/sports-hero.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +16,7 @@
       </section>
 
       <nav class="section-tabs" aria-label="功能分區">
-        <button class="tab-button active" type="button" data-view="settlementView">抵銷後付款流向</button>
+        <button class="tab-button active" type="button" data-view="settlementView"><span aria-hidden="true">💸</span> 誰要付錢</button>
         <button class="tab-button" type="button" data-view="eventsView">新增場次 + 歷史紀錄</button>
         <button class="tab-button" type="button" data-view="peopleView">新增人員設定</button>
       </nav>
@@ -24,7 +25,7 @@
         <section class="panel settlement-panel">
           <div class="panel-header">
             <div>
-              <p class="section-kicker">抵銷後付款流向</p>
+              <p class="section-kicker">誰要付錢</p>
               <h2>最後需要轉帳</h2>
             </div>
             <span class="pill" id="settlementCount">0 筆</span>
