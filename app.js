@@ -67,6 +67,7 @@ const seedData = {
 
 let state = { people: [], events: [] };
 let db = null;
+let clockTimer = null;
 
 const elements = {
   totalEvents: document.querySelector("#totalEvents"),
@@ -115,7 +116,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
 
   const newEvent = {
     date: normalizeDateInput(form.get("date")),
-    time: clean(form.get("time")),
+    time: normalizeTimeRange(form.get("startTime"), form.get("endTime")),
     sport: clean(form.get("sport")),
     total: Number(form.get("total")),
     payer,
@@ -185,8 +186,25 @@ async function initApp() {
       await loadCloudData();
     }
     subscribeToChanges();
+    startClockRefresh();
   } catch (error) {
     renderError(`無法連線到共用資料庫：${error.message}`);
+  }
+}
+
+function startClockRefresh() {
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(refreshTimeSensitiveViews, 60 * 1000);
+  window.addEventListener("focus", refreshTimeSensitiveViews);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshTimeSensitiveViews();
+  });
+}
+
+function refreshTimeSensitiveViews() {
+  renderSettlement();
+  if (!document.querySelector(".event-card.editing")) {
+    renderHistory();
   }
 }
 
@@ -364,6 +382,9 @@ function renderControls() {
     .map((sport) => `<option value="${escapeHtml(sport)}"></option>`)
     .join("");
 
+  fillHourSelect(elements.eventForm.elements.startTime, "18");
+  fillHourSelect(elements.eventForm.elements.endTime, "20");
+
   const selectedFilter = elements.sportFilter.value || "all";
   elements.sportFilter.innerHTML = `<option value="all">全部項目</option>${getSports()
     .map((sport) => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`)
@@ -378,6 +399,20 @@ function renderControls() {
     row.querySelector("span").textContent = name;
     elements.participantPicker.appendChild(row);
   });
+}
+
+function fillHourSelect(select, fallbackHour) {
+  if (!select) return;
+  const selected = select.value || fallbackHour;
+  select.innerHTML = hourOptions(selected);
+}
+
+function hourOptions(selectedHour) {
+  const selected = Number(selectedHour);
+  return Array.from({ length: 24 }, (_, hour) => {
+    const value = String(hour).padStart(2, "0");
+    return `<option value="${value}" ${hour === selected ? "selected" : ""}>${hour}</option>`;
+  }).join("");
 }
 
 function renderSettlement() {
@@ -525,13 +560,17 @@ function renderHistory() {
       const unpaidCount = event.participants.length - paidCount;
       const sportType = getSportType(event.sport);
       const editorPeople = [...new Set(state.people.concat(event.payer, event.participants.map((person) => person.name)).filter(Boolean))];
+      const isUpcoming = !isCompletedEvent(event);
       return `
-        <article class="event-card" data-event-row="${event.id}">
+        <article class="event-card ${isUpcoming ? "is-upcoming" : ""}" data-event-row="${event.id}">
           <div class="event-view">
+            <div class="event-flag">
+              ${isUpcoming ? `<span class="upcoming-tag">時間未到</span>` : ""}
+            </div>
             <div class="event-main">
               <div class="event-title">
                 <span class="event-date">${escapeHtml(formatEventDate(event.date))}</span>
-                <span class="event-time">${escapeHtml(event.time)}</span>
+                <span class="event-time">${escapeHtml(formatEventTime(event.time))}</span>
                 <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
               </div>
               <div class="event-meta">
@@ -565,7 +604,8 @@ function renderHistory() {
           <div class="event-edit-panel" hidden>
             <div class="event-edit-fields">
               <label>日期<input type="date" data-edit-date value="${escapeHtml(normalizeDateInput(event.date))}" /></label>
-              <label>時間<input data-edit-time value="${escapeHtml(event.time)}" /></label>
+              <label>開始時間<select data-edit-start-time>${hourOptions(timeRangeParts(event.time).startHour ?? 18)}</select></label>
+              <label>結束時間<select data-edit-end-time>${hourOptions(timeRangeParts(event.time).endHour ?? 20)}</select></label>
               <label>項目<input data-edit-sport list="sportOptions" value="${escapeHtml(event.sport)}" /></label>
               <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
               <label>付款人
@@ -650,14 +690,14 @@ function renderHistory() {
 
       const changes = {
         date: normalizeDateInput(row.querySelector("[data-edit-date]")?.value),
-        time: clean(row.querySelector("[data-edit-time]")?.value),
+        time: normalizeTimeRange(row.querySelector("[data-edit-start-time]")?.value, row.querySelector("[data-edit-end-time]")?.value),
         sport: clean(row.querySelector("[data-edit-sport]")?.value),
         total: Number(row.querySelector("[data-edit-total]")?.value || 0),
         payer,
         participants,
       };
       if (!changes.date || !changes.time || !changes.sport || !changes.payer) {
-        alert("日期、時間、項目和付款人都要填寫");
+        alert("日期、開始時間、結束時間、項目和付款人都要填寫");
         return;
       }
 
@@ -717,7 +757,7 @@ function getSportType(sport) {
 
 function calculateSettlement() {
   const balances = new Map();
-  state.events.forEach((event) => {
+  state.events.filter(isCompletedEvent).forEach((event) => {
     const share = perPerson(event);
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
@@ -766,6 +806,31 @@ function compareEventsByRecentDate(a, b) {
   return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
 }
 
+function isCompletedEvent(event) {
+  const eventDate = parseEventDate(event.date);
+  if (!eventDate) return true;
+  const today = todayNumber();
+  if (eventDate < today) return true;
+  if (eventDate > today) return false;
+
+  const endMinutes = timeRangeParts(event.time).endMinutes;
+  if (endMinutes == null) return true;
+  return currentMinutes() >= endMinutes;
+}
+
+function todayNumber() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return Number(`${year}${month}${day}`);
+}
+
+function currentMinutes() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
 function parseEventDate(value) {
   const text = String(value || "");
   const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -808,6 +873,50 @@ function dateParts(value) {
     month: Number(slashMatch[2]),
     day: Number(slashMatch[3]),
   };
+}
+
+function normalizeTimeRange(start, end) {
+  const startText = normalizeTime(start);
+  const endText = normalizeTime(end);
+  if (!startText || !endText) return "";
+  return `${startText}-${endText}`;
+}
+
+function normalizeTime(value) {
+  const text = clean(value);
+  const match = text.match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) return text;
+  const hour = Math.min(23, Math.max(0, Number(match[1])));
+  return String(hour).padStart(2, "0");
+}
+
+function formatEventTime(value) {
+  const range = timeRangeParts(value);
+  if (range.start && range.end) return `${Number(range.start)}-${Number(range.end)}`;
+  return clean(value);
+}
+
+function timeRangeParts(value) {
+  const text = clean(value);
+  const parts = text.match(/(\d{1,2})(?::?(\d{2}))?\s*[-~–—到至]\s*(\d{1,2})(?::?(\d{2}))?/);
+  if (!parts) return { start: "", end: "", startHour: null, endHour: null, startMinutes: null, endMinutes: null };
+
+  const start = normalizeTime(parts[1]);
+  const end = normalizeTime(parts[3]);
+  return {
+    start,
+    end,
+    startHour: Number(start),
+    endHour: Number(end),
+    startMinutes: timeToMinutes(start),
+    endMinutes: timeToMinutes(end),
+  };
+}
+
+function timeToMinutes(value) {
+  const match = clean(value).match(/^(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2] || 0);
 }
 
 function perPerson(event) {
