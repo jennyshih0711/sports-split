@@ -651,7 +651,8 @@ select:focus {
 
 .participant-editor {
   display: grid;
-  grid-column: 2 / -1;
+  grid-column: 2 / 4;
+  grid-row: 2;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 5px;
   margin-top: 0;
@@ -720,6 +721,8 @@ select:focus {
   align-items: center;
   flex-wrap: wrap;
   min-width: 88px;
+  grid-column: 4;
+  grid-row: 1;
 }
 
 .event-actions .edit-event-button {
