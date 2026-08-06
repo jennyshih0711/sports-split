@@ -480,7 +480,8 @@ function renderPeople() {
     button.addEventListener("click", async () => {
       const name = button.dataset.removePerson;
       const isUsed = state.events.some((event) => event.payer === name || event.participants.some((person) => person.name === name));
-      if (isUsed && !confirm(`${name} 已在場次紀錄中，移除後歷史紀錄仍會保留姓名。確定移除？`)) return;
+      const message = isUsed ? `${name} 已在場次紀錄中，刪除後歷史紀錄仍會保留姓名。確定要刪除嗎？` : "確定要刪除嗎？";
+      if (!confirm(message)) return;
       try {
         await deletePerson(name);
         await loadCloudData();
@@ -559,6 +560,7 @@ function renderHistory() {
 
   elements.historyList.querySelectorAll("[data-remove-event]").forEach((button) => {
     button.addEventListener("click", async () => {
+      if (!confirm("確定要刪除嗎？")) return;
       try {
         await deleteEvent(button.dataset.removeEvent);
         await loadCloudData();
