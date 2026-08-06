@@ -292,13 +292,59 @@ button {
 
 .transfer-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 10px;
   align-items: center;
   padding: 14px;
   background: #f8fbf8;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.mark-paid-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px 0 10px;
+  color: var(--green-dark);
+  background: #f0fbf4;
+  border: 1px solid #8fc9a7;
+  border-radius: 8px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.mark-paid-button:hover {
+  background: #ddf3e6;
+  border-color: var(--green);
+}
+
+.check-box {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border: 2px solid var(--green);
+  border-radius: 4px;
+}
+
+.mark-paid-button:hover .check-box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 5px;
+  height: 9px;
+  border: solid var(--green);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.mark-paid-button:disabled {
+  opacity: 0.58;
+  cursor: wait;
 }
 
 .transfer-details {

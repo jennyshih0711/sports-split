@@ -443,6 +443,10 @@ function renderSettlement() {
             <div class="event-meta">全體抵銷後的最簡化轉帳</div>
           </div>
           <div class="amount">${money(transfer.amount)}</div>
+          <button class="mark-paid-button" type="button" data-mark-paid="${transfer.id}">
+            <span class="check-box" aria-hidden="true"></span>
+            <span>我已經完成付款</span>
+          </button>
           <details class="transfer-details">
             <summary>查看合併明細</summary>
             <p>此筆為全體淨額合併結果，可能不是單一場次的一對一付款。</p>
@@ -461,6 +465,23 @@ function renderSettlement() {
       `,
     )
     .join("");
+
+  elements.settlementList.querySelectorAll("[data-mark-paid]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("確定已付款了嗎？")) return;
+      const transfer = transfers.find((item) => item.id === button.dataset.markPaid);
+      if (!transfer) return;
+
+      try {
+        button.disabled = true;
+        await markTransferDetailsPaid(transfer);
+        await loadCloudData();
+      } catch (error) {
+        alert(`更新付款狀態失敗：${error.message}`);
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function renderDetailList(items) {
@@ -479,6 +500,29 @@ function renderDetailList(items) {
         .join("")}
     </ul>
   `;
+}
+
+async function markTransferDetailsPaid(transfer) {
+  const grouped = new Map();
+  transfer.fromDetails.forEach((detail) => {
+    if (!detail.eventId || !detail.personName) return;
+    if (!grouped.has(detail.eventId)) grouped.set(detail.eventId, new Set());
+    grouped.get(detail.eventId).add(detail.personName);
+  });
+
+  if (!grouped.size) {
+    throw new Error("這筆轉帳沒有可回寫的場次明細");
+  }
+
+  const updates = [];
+  grouped.forEach((names, eventId) => {
+    const eventItem = state.events.find((event) => event.id === eventId);
+    if (!eventItem) return;
+    const participants = eventItem.participants.map((person) => (names.has(person.name) ? { ...person, status: "paid" } : person));
+    updates.push(updateEventParticipants(eventId, participants));
+  });
+
+  await Promise.all(updates);
 }
 
 function renderPeople() {
@@ -800,10 +844,14 @@ function calculateSettlement() {
         balances.set(event.payer, roundMoney((balances.get(event.payer) || 0) + share));
         addDetailEntry(payerEntries, person.name, {
           amount: share,
+          eventId: event.id,
+          personName: person.name,
           label: `${formatEventDate(event.date)} ${formatEventTime(event.time)} ${event.sport}，原付款人 ${event.payer}`,
         });
         addDetailEntry(receiverEntries, event.payer, {
           amount: share,
+          eventId: event.id,
+          personName: person.name,
           label: `${formatEventDate(event.date)} ${formatEventTime(event.time)} ${event.sport}，${person.name} 未付款`,
         });
       });
@@ -831,6 +879,7 @@ function calculateSettlement() {
 
     if (amount > 0) {
       transfers.push({
+        id: `${payer.name}->${receiver.name}-${transfers.length}`,
         from: payer.name,
         to: receiver.name,
         amount,
@@ -868,7 +917,7 @@ function consumeDetailEntries(entries, targetAmount) {
     const amount = roundMoney(Math.min(entry.remaining, remainingTarget));
     if (amount <= 0) continue;
 
-    consumed.push({ label: entry.label, amount });
+    consumed.push({ label: entry.label, amount, eventId: entry.eventId, personName: entry.personName });
     entry.remaining = roundMoney(entry.remaining - amount);
     remainingTarget = roundMoney(remainingTarget - amount);
   }
