@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>運動分帳</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="summary-band">
+        <div>
+          <p class="eyebrow">運動分帳</p>
+          <h1>場次、付款、轉帳一次算清楚</h1>
+        </div>
+        <div class="summary-actions">
+          <button class="ghost-button" id="resetDemoBtn" type="button">還原範例</button>
+          <button class="danger-button" id="clearAllBtn" type="button">清空資料</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid" aria-label="總覽">
+        <article>
+          <span>總場次</span>
+          <strong id="totalEvents">0</strong>
+        </article>
+        <article>
+          <span>參與人員</span>
+          <strong id="totalPeople">0</strong>
+        </article>
+        <article>
+          <span>尚未結清</span>
+          <strong id="openTransfers">0</strong>
+        </article>
+        <article>
+          <span>待轉帳金額</span>
+          <strong id="openAmount">$0</strong>
+        </article>
+      </section>
+
+      <nav class="section-tabs" aria-label="功能分區">
+        <button class="tab-button active" type="button" data-view="settlementView">抵銷後付款流向</button>
+        <button class="tab-button" type="button" data-view="eventsView">新增場次 + 歷史紀錄</button>
+        <button class="tab-button" type="button" data-view="peopleView">新增人員設定</button>
+      </nav>
+
+      <section class="view-panel active" id="settlementView">
+        <section class="panel settlement-panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">抵銷後付款流向</p>
+              <h2>最後需要轉帳</h2>
+            </div>
+            <span class="pill" id="settlementCount">0 筆</span>
+          </div>
+          <div id="settlementList" class="settlement-list"></div>
+        </section>
+      </section>
+
+      <section class="view-panel" id="eventsView">
+        <div class="events-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">新增場次</p>
+                <h2>記一場運動</h2>
+              </div>
+            </div>
+            <form id="eventForm" class="form-grid">
+              <label>
+                日期
+                <input name="date" placeholder="例如 8/6(四)" required />
+              </label>
+              <label>
+                時間
+                <input name="time" placeholder="18-20" required />
+              </label>
+              <label>
+                項目
+                <input name="sport" list="sportOptions" placeholder="匹克球" required />
+                <datalist id="sportOptions"></datalist>
+              </label>
+              <label>
+                費用總計
+                <input name="total" type="number" min="0" step="1" placeholder="2000" required />
+              </label>
+              <label class="wide">
+                付款人
+                <select name="payer" required></select>
+              </label>
+              <div class="wide">
+                <div class="row-title">參加者與付款狀態</div>
+                <div id="participantPicker" class="participant-picker"></div>
+              </div>
+              <button class="primary-button wide" type="submit">新增場次</button>
+            </form>
+          </section>
+
+          <section class="panel history-panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">歷史紀錄</p>
+                <h2>所有場次</h2>
+              </div>
+              <select id="sportFilter" aria-label="篩選項目">
+                <option value="all">全部項目</option>
+              </select>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view-panel" id="peopleView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">人員設定</p>
+              <h2>新增人員設定</h2>
+            </div>
+          </div>
+          <form id="personForm" class="inline-form">
+            <input name="name" placeholder="輸入姓名" required />
+            <button class="primary-button" type="submit">新增</button>
+          </form>
+          <div id="peopleList" class="people-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="participantTemplate">
+      <div class="participant-row">
+        <label class="check-label">
+          <input type="checkbox" class="participant-check" />
+          <span></span>
+        </label>
+        <select class="participant-status">
+          <option value="unpaid" selected>未付款</option>
+          <option value="paid">已付款</option>
+        </select>
+      </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
