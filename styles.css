@@ -301,6 +301,66 @@ button {
   border-radius: 8px;
 }
 
+.transfer-details {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+
+.transfer-details summary {
+  width: fit-content;
+  color: var(--blue);
+  font-size: 0.86rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.transfer-details p {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-grid h3 {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+}
+
+.detail-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 7px 8px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.detail-list strong {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.detail-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .transfer-route {
   display: flex;
   align-items: center;
@@ -848,6 +908,7 @@ select:focus {
   .form-grid,
   .event-fields-row,
   .event-edit-fields,
+  .detail-grid,
   .settlement-summary,
   .participant-row,
   .person-chip,

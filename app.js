@@ -440,13 +440,45 @@ function renderSettlement() {
               <span class="arrow">→</span>
               <span>${escapeHtml(transfer.to)}</span>
             </div>
-            <div class="event-meta">抵銷彼此互欠後的實際轉帳</div>
+            <div class="event-meta">全體抵銷後的最簡化轉帳</div>
           </div>
           <div class="amount">${money(transfer.amount)}</div>
+          <details class="transfer-details">
+            <summary>查看合併明細</summary>
+            <p>此筆為全體淨額合併結果，可能不是單一場次的一對一付款。</p>
+            <div class="detail-grid">
+              <div>
+                <h3>${escapeHtml(transfer.from)} 的未付款來源</h3>
+                ${renderDetailList(transfer.fromDetails)}
+              </div>
+              <div>
+                <h3>${escapeHtml(transfer.to)} 的代墊來源</h3>
+                ${renderDetailList(transfer.toDetails)}
+              </div>
+            </div>
+          </details>
         </article>
       `,
     )
     .join("");
+}
+
+function renderDetailList(items) {
+  if (!items.length) return `<div class="detail-empty">沒有可列出的明細</div>`;
+  return `
+    <ul class="detail-list">
+      ${items
+        .map(
+          (item) => `
+            <li>
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${money(item.amount)}</strong>
+            </li>
+          `,
+        )
+        .join("")}
+    </ul>
+  `;
 }
 
 function renderPeople() {
@@ -757,6 +789,8 @@ function getSportType(sport) {
 
 function calculateSettlement() {
   const balances = new Map();
+  const payerEntries = new Map();
+  const receiverEntries = new Map();
   state.events.filter(isCompletedEvent).forEach((event) => {
     const share = perPerson(event);
     event.participants
@@ -764,6 +798,14 @@ function calculateSettlement() {
       .forEach((person) => {
         balances.set(person.name, roundMoney((balances.get(person.name) || 0) - share));
         balances.set(event.payer, roundMoney((balances.get(event.payer) || 0) + share));
+        addDetailEntry(payerEntries, person.name, {
+          amount: share,
+          label: `${formatEventDate(event.date)} ${formatEventTime(event.time)} ${event.sport}，原付款人 ${event.payer}`,
+        });
+        addDetailEntry(receiverEntries, event.payer, {
+          amount: share,
+          label: `${formatEventDate(event.date)} ${formatEventTime(event.time)} ${event.sport}，${person.name} 未付款`,
+        });
       });
   });
 
@@ -771,8 +813,8 @@ function calculateSettlement() {
   const receivers = [];
   balances.forEach((amount, name) => {
     const rounded = roundMoney(amount);
-    if (rounded < 0) payers.push({ name, amount: Math.abs(rounded) });
-    if (rounded > 0) receivers.push({ name, amount: rounded });
+    if (rounded < 0) payers.push({ name, amount: Math.abs(rounded), entries: cloneDetailEntries(payerEntries.get(name) || []) });
+    if (rounded > 0) receivers.push({ name, amount: rounded, entries: cloneDetailEntries(receiverEntries.get(name) || []) });
   });
 
   payers.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "zh-Hant"));
@@ -788,7 +830,13 @@ function calculateSettlement() {
     const amount = roundMoney(Math.min(payer.amount, receiver.amount));
 
     if (amount > 0) {
-      transfers.push({ from: payer.name, to: receiver.name, amount });
+      transfers.push({
+        from: payer.name,
+        to: receiver.name,
+        amount,
+        fromDetails: consumeDetailEntries(payer.entries, amount),
+        toDetails: consumeDetailEntries(receiver.entries, amount),
+      });
       payer.amount = roundMoney(payer.amount - amount);
       receiver.amount = roundMoney(receiver.amount - amount);
     }
@@ -798,6 +846,34 @@ function calculateSettlement() {
   }
 
   return transfers;
+}
+
+function addDetailEntry(map, name, entry) {
+  if (!map.has(name)) map.set(name, []);
+  map.get(name).push({ ...entry, remaining: entry.amount });
+}
+
+function cloneDetailEntries(entries) {
+  return entries.map((entry) => ({ ...entry, remaining: entry.amount }));
+}
+
+function consumeDetailEntries(entries, targetAmount) {
+  let remainingTarget = roundMoney(targetAmount);
+  const consumed = [];
+
+  for (const entry of entries) {
+    if (remainingTarget <= 0) break;
+    if (entry.remaining <= 0) continue;
+
+    const amount = roundMoney(Math.min(entry.remaining, remainingTarget));
+    if (amount <= 0) continue;
+
+    consumed.push({ label: entry.label, amount });
+    entry.remaining = roundMoney(entry.remaining - amount);
+    remainingTarget = roundMoney(remainingTarget - amount);
+  }
+
+  return consumed;
 }
 
 function compareEventsByRecentDate(a, b) {
