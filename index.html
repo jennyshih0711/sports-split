@@ -14,25 +14,6 @@
         </div>
       </section>
 
-      <section class="kpi-grid" aria-label="總覽">
-        <article>
-          <span>總場次</span>
-          <strong id="totalEvents">0</strong>
-        </article>
-        <article>
-          <span>參與人員</span>
-          <strong id="totalPeople">0</strong>
-        </article>
-        <article>
-          <span>尚未結清</span>
-          <strong id="openTransfers">0</strong>
-        </article>
-        <article>
-          <span>待轉帳金額</span>
-          <strong id="openAmount">$0</strong>
-        </article>
-      </section>
-
       <nav class="section-tabs" aria-label="功能分區">
         <button class="tab-button active" type="button" data-view="settlementView">抵銷後付款流向</button>
         <button class="tab-button" type="button" data-view="eventsView">新增場次 + 歷史紀錄</button>
@@ -49,6 +30,16 @@
             <span class="pill" id="settlementCount">0 筆</span>
           </div>
           <div id="settlementList" class="settlement-list"></div>
+          <div class="settlement-summary">
+            <article>
+              <span>尚未結清</span>
+              <strong id="openTransfers">0</strong>
+            </article>
+            <article>
+              <span>待轉帳金額</span>
+              <strong id="openAmount">$0</strong>
+            </article>
+          </div>
         </section>
       </section>
 
@@ -61,28 +52,30 @@
                 <h2>記一場運動</h2>
               </div>
             </div>
-            <form id="eventForm" class="form-grid">
-              <label>
+            <form id="eventForm" class="compact-event-form">
+              <div class="event-fields-row">
+                <label>
                 日期
                 <input name="date" placeholder="例如 8/6(四)" required />
-              </label>
-              <label>
+                </label>
+                <label>
                 時間
                 <input name="time" placeholder="18-20" required />
-              </label>
-              <label>
+                </label>
+                <label>
                 項目
                 <input name="sport" list="sportOptions" placeholder="匹克球" required />
                 <datalist id="sportOptions"></datalist>
-              </label>
-              <label>
+                </label>
+                <label>
                 費用總計
                 <input name="total" type="number" min="0" step="1" placeholder="2000" required />
-              </label>
-              <label class="wide">
+                </label>
+                <label>
                 付款人
                 <select name="payer" required></select>
-              </label>
+                </label>
+              </div>
               <div class="wide">
                 <div class="row-title">參加者與付款狀態</div>
                 <div id="participantPicker" class="participant-picker"></div>
@@ -92,7 +85,7 @@
           </section>
 
           <section class="panel history-panel">
-            <div class="panel-header">
+            <div class="panel-header history-header">
               <div>
                 <p class="section-kicker">歷史紀錄</p>
                 <h2>所有場次</h2>

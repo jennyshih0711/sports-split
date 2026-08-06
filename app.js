@@ -352,8 +352,8 @@ function renderSettlement() {
   const transfers = calculateSettlement();
   const totalAmount = transfers.reduce((sum, transfer) => sum + transfer.amount, 0);
 
-  elements.totalEvents.textContent = state.events.length;
-  elements.totalPeople.textContent = state.people.length;
+  if (elements.totalEvents) elements.totalEvents.textContent = state.events.length;
+  if (elements.totalPeople) elements.totalPeople.textContent = state.people.length;
   elements.openTransfers.textContent = transfers.length;
   elements.openAmount.textContent = money(totalAmount);
   elements.settlementCount.textContent = `${transfers.length} 筆`;
@@ -427,33 +427,43 @@ function renderHistory() {
 
   elements.historyList.innerHTML = events
     .map((event) => {
+      const paidCount = event.participants.filter((person) => person.status === "paid").length;
+      const unpaidCount = event.participants.length - paidCount;
+      const sportType = getSportType(event.sport);
       return `
         <article class="event-card">
-          <div>
+          <div class="event-main">
             <div class="event-title">
-              <span>${escapeHtml(event.date)} ${escapeHtml(event.time)}</span>
-              <span class="sport-tag">${escapeHtml(event.sport)}</span>
+              <span class="event-date">${escapeHtml(event.date)}</span>
+              <span class="event-time">${escapeHtml(event.time)}</span>
+              <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
             </div>
             <div class="event-meta">
-              總費用 ${money(event.total)}，${event.participants.length} 人，每人 ${money(perPerson(event))}，付款人 ${escapeHtml(event.payer)}
-            </div>
-            <div class="participant-editor">
-              ${event.participants
-                .map(
-                  (person) => `
-                    <label class="status-control">
-                      <span>${escapeHtml(person.name)}</span>
-                      <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer ? "disabled" : ""}>
-                        <option value="paid" ${person.status === "paid" ? "selected" : ""}>已付款</option>
-                        <option value="unpaid" ${person.status === "unpaid" ? "selected" : ""}>未付款</option>
-                      </select>
-                    </label>
-                  `,
-                )
-                .join("")}
+              總費用 ${money(event.total)} · ${event.participants.length} 人 · 每人 ${money(perPerson(event))} · 付款人 ${escapeHtml(event.payer)}
             </div>
           </div>
-          <button type="button" data-remove-event="${event.id}">刪除</button>
+          <div class="event-status-summary">
+            <span class="status-count paid">${paidCount} 已付款</span>
+            <span class="status-count unpaid">${unpaidCount} 未付款</span>
+          </div>
+          <div class="participant-editor">
+            ${event.participants
+              .map(
+                (person) => `
+                  <label class="status-control ${person.status === "paid" ? "is-paid" : "is-unpaid"} ${person.name === event.payer ? "is-payer" : ""}">
+                    <span>${escapeHtml(person.name)}</span>
+                    <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer ? "disabled" : ""}>
+                      <option value="paid" ${person.status === "paid" ? "selected" : ""}>已付款</option>
+                      <option value="unpaid" ${person.status === "unpaid" ? "selected" : ""}>未付款</option>
+                    </select>
+                  </label>
+                `,
+              )
+              .join("")}
+          </div>
+          <div class="event-actions">
+            <button type="button" data-remove-event="${event.id}">刪除</button>
+          </div>
         </article>
       `;
     })
@@ -485,6 +495,12 @@ function renderHistory() {
       }
     });
   });
+}
+
+function getSportType(sport) {
+  if (String(sport).includes("羽球")) return { className: "badminton", icon: "🏸" };
+  if (String(sport).includes("匹克球")) return { className: "pickleball", icon: "◉" };
+  return { className: "other-sport", icon: "•" };
 }
 
 function calculateSettlement() {
