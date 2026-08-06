@@ -49,7 +49,7 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
-  min-height: 178px;
+  min-height: 132px;
   padding: 30px;
   color: white;
   background:
@@ -60,7 +60,7 @@ button {
 }
 
 .summary-band h1 {
-  margin: 4px 0 0;
+  margin: 0;
   max-width: 720px;
   font-size: clamp(2rem, 4vw, 4rem);
   line-height: 1.05;

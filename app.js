@@ -148,7 +148,7 @@ elements.personForm.addEventListener("submit", async (event) => {
 
 elements.sportFilter.addEventListener("change", renderHistory);
 
-elements.resetDemoBtn.addEventListener("click", async () => {
+elements.resetDemoBtn?.addEventListener("click", async () => {
   if (!confirm("確定要把雲端資料還原成範例資料嗎？")) return;
   try {
     await clearCloudData();
@@ -159,7 +159,7 @@ elements.resetDemoBtn.addEventListener("click", async () => {
   }
 });
 
-elements.clearAllBtn.addEventListener("click", async () => {
+elements.clearAllBtn?.addEventListener("click", async () => {
   if (!confirm("確定要清空所有雲端人員與場次紀錄嗎？")) return;
   try {
     await clearCloudData();
