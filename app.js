@@ -1,5 +1,6 @@
 const supabaseUrl = "https://mpklydfhglclnebptjwv.supabase.co";
 const supabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb";
+const PENDING_PAYER = "待確認";
 
 const seedData = {
   people: ["elmo", "乃哥", "卡森", "施", "汪", "生哥", "秉樺", "芮瑜", "許", "高"],
@@ -108,7 +109,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
     }));
 
   const payer = String(form.get("payer"));
-  if (!participants.some((person) => person.name === payer)) {
+  if (!isPendingPayer(payer) && !participants.some((person) => person.name === payer)) {
     participants.unshift({ name: payer, status: "paid" });
   }
 
@@ -124,7 +125,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
   };
 
   try {
-    await upsertPeople(participants.map((person) => person.name).concat(payer));
+    await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
     await insertEvent(newEvent);
     elements.eventForm.reset();
     await loadCloudData();
@@ -358,6 +359,10 @@ function clean(value) {
   return String(value ?? "").trim();
 }
 
+function isPendingPayer(name) {
+  return clean(name) === PENDING_PAYER;
+}
+
 function render() {
   renderControls();
   renderSettlement();
@@ -376,7 +381,10 @@ function showView(viewId) {
 
 function renderControls() {
   const payerSelect = elements.eventForm.elements.payer;
-  payerSelect.innerHTML = state.people.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+  payerSelect.innerHTML = [
+    `<option value="${escapeHtml(PENDING_PAYER)}">${escapeHtml(PENDING_PAYER)}</option>`,
+    ...state.people.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
+  ].join("");
 
   elements.sportOptions.innerHTML = getSports()
     .map((sport) => `<option value="${escapeHtml(sport)}"></option>`)
@@ -635,7 +643,10 @@ function renderHistory() {
       const paidCount = event.participants.filter((person) => person.status === "paid").length;
       const unpaidCount = event.participants.length - paidCount;
       const sportType = getSportType(event.sport);
-      const editorPeople = [...new Set(state.people.concat(event.payer, event.participants.map((person) => person.name)).filter(Boolean))];
+      const editorPeople = [
+        ...new Set(state.people.concat(event.participants.map((person) => person.name), isPendingPayer(event.payer) ? [] : event.payer).filter(Boolean)),
+      ];
+      const payerOptions = [PENDING_PAYER, ...editorPeople.filter((name) => !isPendingPayer(name))];
       const isUpcoming = !isCompletedEvent(event);
       return `
         <article class="event-card ${isUpcoming ? "is-upcoming" : ""}" data-event-row="${event.id}">
@@ -686,7 +697,7 @@ function renderHistory() {
               <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
               <label>付款人
                 <select data-edit-payer>
-                  ${editorPeople.map((name) => `<option value="${escapeHtml(name)}" ${name === event.payer ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+                  ${payerOptions.map((name) => `<option value="${escapeHtml(name)}" ${name === event.payer ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
                 </select>
               </label>
             </div>
@@ -737,6 +748,7 @@ function renderHistory() {
   elements.historyList.querySelectorAll("[data-edit-payer]").forEach((select) => {
     select.addEventListener("change", () => {
       const row = select.closest(".event-card");
+      if (isPendingPayer(select.value)) return;
       const checkbox = [...(row?.querySelectorAll("[data-edit-participant]") || [])].find((item) => item.dataset.editParticipant === select.value);
       const status = [...(row?.querySelectorAll("[data-edit-status]") || [])].find((item) => item.dataset.editStatus === select.value);
       if (checkbox) checkbox.checked = true;
@@ -753,10 +765,10 @@ function renderHistory() {
         .map((checkbox) => {
           const name = checkbox.dataset.editParticipant;
           const status = [...row.querySelectorAll("[data-edit-status]")].find((item) => item.dataset.editStatus === name)?.value || "unpaid";
-          return { name, status: name === payer ? "paid" : status };
+          return { name, status: !isPendingPayer(payer) && name === payer ? "paid" : status };
         });
 
-      if (payer && !participants.some((person) => person.name === payer)) {
+      if (payer && !isPendingPayer(payer) && !participants.some((person) => person.name === payer)) {
         participants.unshift({ name: payer, status: "paid" });
       }
       if (!participants.length) {
@@ -835,7 +847,7 @@ function calculateSettlement() {
   const balances = new Map();
   const payerEntries = new Map();
   const receiverEntries = new Map();
-  state.events.filter(isCompletedEvent).forEach((event) => {
+  state.events.filter((event) => isCompletedEvent(event) && !isPendingPayer(event.payer)).forEach((event) => {
     const share = perPerson(event);
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
