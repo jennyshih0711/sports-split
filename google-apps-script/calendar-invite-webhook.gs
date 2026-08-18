@@ -8,14 +8,8 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: "Invalid token" });
     }
 
+    const action = payload.action || "invite";
     const eventData = payload.event || {};
-    const attendees = Array.isArray(eventData.attendees) ? eventData.attendees : [];
-    const guestEmails = attendees.map((person) => person.email).filter(Boolean);
-
-    if (!guestEmails.length) {
-      return jsonResponse({ ok: true, skipped: true, reason: "No attendee emails" });
-    }
-
     const date = parseDate(eventData.date);
     const time = parseTimeRange(eventData.time);
     const start = new Date(date.year, date.month - 1, date.day, time.startHour, time.startMinute);
@@ -23,6 +17,25 @@ function doPost(e) {
     if (end <= start) end.setDate(end.getDate() + 1);
 
     const title = calendarTitle(eventData.sport);
+    const calendar = CalendarApp.getDefaultCalendar();
+    const existingEvent = findExistingEvent(calendar, title, start, end);
+
+    if (action === "cancel") {
+      if (!existingEvent) {
+        return jsonResponse({ ok: true, skipped: true, reason: "Calendar event not found", action: "not_found" });
+      }
+
+      existingEvent.deleteEvent();
+      return jsonResponse({ ok: true, id: existingEvent.getId(), title, action: "deleted" });
+    }
+
+    const attendees = Array.isArray(eventData.attendees) ? eventData.attendees : [];
+    const guestEmails = attendees.map((person) => person.email).filter(Boolean);
+
+    if (!guestEmails.length) {
+      return jsonResponse({ ok: true, skipped: true, reason: "No attendee emails" });
+    }
+
     const location = eventLocation(eventData.sport);
     const description = [
       `項目：${eventData.sport || ""}`,
@@ -34,8 +47,6 @@ function doPost(e) {
       "此活動由運動分帳網站自動建立。",
     ].join("\n");
 
-    const calendar = CalendarApp.getDefaultCalendar();
-    const existingEvent = findExistingEvent(calendar, title, start, end);
     const calendarEvent = existingEvent || calendar.createEvent(title, start, end, {
       location,
       description,

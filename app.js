@@ -366,6 +366,50 @@ async function sendCalendarInvite(event, attendeeRows = null) {
   }
 }
 
+async function cancelCalendarInvite(event) {
+  if (!calendarInviteWebhookUrl) return { status: "disabled" };
+
+  const payload = {
+    token: calendarInviteToken,
+    ownerEmail: calendarOwnerEmail,
+    action: "cancel",
+    event: {
+      date: event.date,
+      time: event.time,
+      sport: event.sport,
+      total: event.total,
+      payer: event.payer,
+      participants: event.participants.map((participant) => participant.name),
+    },
+  };
+
+  try {
+    await fetch(calendarInviteWebhookUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    });
+    return { status: "sent" };
+  } catch (error) {
+    console.warn("Calendar cancel request failed", error);
+    return { status: "failed", message: error.message };
+  }
+}
+
+function showCalendarCancelResult(result) {
+  if (!result || result.status === "disabled") return;
+  if (result.status === "sent") {
+    showNotice("場次已刪除，並已送出行事曆取消請求。", "success");
+    return;
+  }
+  if (result.status === "failed") {
+    showNotice(`場次已刪除，但行事曆取消請求失敗：${result.message}`, "warning");
+  }
+}
+
 function showCalendarInviteResult(result) {
   if (!result || result.status === "disabled") return;
   if (result.status === "sent") {
@@ -1169,11 +1213,16 @@ function renderHistory() {
   elements.historyList.querySelectorAll("[data-remove-event]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!confirm("確定要刪除嗎？")) return;
+      const eventItem = state.events.find((event) => event.id === button.dataset.removeEvent);
       try {
+        button.disabled = true;
+        const cancelResult = eventItem ? await cancelCalendarInvite(eventItem) : { status: "disabled" };
         await deleteEvent(button.dataset.removeEvent);
         await loadCloudData();
+        showCalendarCancelResult(cancelResult);
       } catch (error) {
         alert(`刪除場次失敗：${error.message}`);
+        button.disabled = false;
       }
     });
   });
