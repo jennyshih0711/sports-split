@@ -319,18 +319,20 @@ async function insertEvent(event) {
   if (error) throw error;
 }
 
-async function sendCalendarInvite(event) {
+async function sendCalendarInvite(event, attendeeRows = null) {
   if (!calendarInviteWebhookUrl) return { status: "disabled" };
 
-  const attendeeRows = event.participants.map((participant) => {
-    const person = state.people.find((item) => item.name === participant.name);
-    return {
-      name: participant.name,
-      email: clean(person?.email),
-    };
-  });
-  const attendees = attendeeRows.filter((person) => person.email);
-  const skipped = attendeeRows.filter((person) => !person.email).map((person) => person.name);
+  const inviteRows =
+    attendeeRows ||
+    event.participants.map((participant) => {
+      const person = state.people.find((item) => item.name === participant.name);
+      return {
+        name: participant.name,
+        email: clean(person?.email),
+      };
+    });
+  const attendees = inviteRows.filter((person) => person.email);
+  const skipped = inviteRows.filter((person) => !person.email).map((person) => person.name);
 
   if (!attendees.length) return { status: "skipped", skipped };
 
@@ -413,15 +415,16 @@ async function deletePerson(name) {
 async function updatePerson(oldName, newName, email) {
   const from = clean(oldName);
   const to = clean(newName);
+  const newEmail = clean(email);
+  const oldPerson = state.people.find((person) => person.name === from);
+  const shouldSendSupplementalInvites = Boolean(newEmail) && clean(oldPerson?.email) !== newEmail;
   if (!from || !to) return;
   if (from !== to && personNames().includes(to)) {
     throw new Error(`${to} 已存在，請使用不同名稱`);
   }
 
-  const peopleUpdate = await db.from("people").update({ name: to, email: clean(email) }).eq("name", from);
+  const peopleUpdate = await db.from("people").update({ name: to, email: newEmail }).eq("name", from);
   if (peopleUpdate.error) throw peopleUpdate.error;
-
-  if (from === to) return;
 
   const affectedEvents = state.events
     .map((event) => {
@@ -437,6 +440,59 @@ async function updatePerson(oldName, newName, email) {
   );
   const failedUpdate = updates.find((result) => result.error);
   if (failedUpdate) throw failedUpdate.error;
+
+  if (!shouldSendSupplementalInvites) return { supplementalInvites: { status: "unchanged" } };
+  const eventsForInvite = state.events.map((event) => ({
+    ...event,
+    payer: event.payer === from ? to : event.payer,
+    participants: event.participants.map((person) => (person.name === from ? { ...person, name: to } : person)),
+  }));
+  return { supplementalInvites: await sendSupplementalCalendarInvites(eventsForInvite, to, newEmail) };
+}
+
+async function sendSupplementalCalendarInvites(events, personName, email) {
+  const targetEvents = events.filter(
+    (event) => !isCompletedEvent(event) && event.participants.some((participant) => participant.name === personName),
+  );
+
+  if (!targetEvents.length) return { status: "none" };
+
+  const results = await Promise.all(targetEvents.map((event) => sendCalendarInvite(event, [{ name: personName, email }])));
+  const sent = results.filter((result) => result.status === "sent").length;
+  const failed = results.filter((result) => result.status === "failed");
+
+  if (failed.length) {
+    return {
+      status: sent ? "partial" : "failed",
+      sent,
+      total: targetEvents.length,
+      message: failed.map((result) => result.message).filter(Boolean).join("、"),
+    };
+  }
+
+  return { status: "sent", sent, total: targetEvents.length };
+}
+
+function showSupplementalInviteResult(result, personName) {
+  if (!result || result.status === "unchanged") return;
+  if (result.status === "none") {
+    showNotice(`${personName} 的 Email 已更新；沒有需要補寄的未來場次。`, "success");
+    return;
+  }
+  if (result.status === "sent") {
+    showNotice(`${personName} 的 Email 已更新，並已補寄 ${result.sent} 場未來場次邀請。`, "success");
+    alert(`${personName} 的 Email 已更新，並已補寄 ${result.sent} 場未來場次邀請。`);
+    return;
+  }
+  if (result.status === "partial") {
+    showNotice(`${personName} 的 Email 已更新，已補寄 ${result.sent}/${result.total} 場；部分邀請失敗：${result.message}`, "warning");
+    alert(`${personName} 的 Email 已更新，已補寄 ${result.sent}/${result.total} 場；部分邀請失敗：${result.message}`);
+    return;
+  }
+  if (result.status === "failed") {
+    showNotice(`${personName} 的 Email 已更新，但補寄行事曆邀請失敗：${result.message}`, "error");
+    alert(`${personName} 的 Email 已更新，但補寄行事曆邀請失敗：${result.message}`);
+  }
 }
 
 async function clearCloudData() {
@@ -758,8 +814,9 @@ function renderPeople() {
       }
       try {
         button.disabled = true;
-        await updatePerson(oldName, newName, email);
+        const result = await updatePerson(oldName, newName, email);
         await loadCloudData();
+        showSupplementalInviteResult(result?.supplementalInvites, newName);
       } catch (error) {
         alert(`更新人員失敗：${error.message}`);
         button.disabled = false;

@@ -34,15 +34,21 @@ function doPost(e) {
       "此活動由運動分帳網站自動建立。",
     ].join("\n");
 
-    const calendarEvent = CalendarApp.getDefaultCalendar().createEvent(title, start, end, {
+    const calendar = CalendarApp.getDefaultCalendar();
+    const existingEvent = findExistingEvent(calendar, title, start, end);
+    const calendarEvent = existingEvent || calendar.createEvent(title, start, end, {
       location,
       description,
       guests: guestEmails.join(","),
       sendInvites: true,
     });
 
-    calendarEvent.setVisibility(CalendarApp.Visibility.PRIVATE);
-    calendarEvent.setGuestsCanSeeGuests(false);
+    if (existingEvent) {
+      addMissingGuests(calendarEvent, guestEmails);
+    } else {
+      calendarEvent.setVisibility(CalendarApp.Visibility.PRIVATE);
+      calendarEvent.setGuestsCanSeeGuests(false);
+    }
 
     return jsonResponse({
       ok: true,
@@ -50,10 +56,31 @@ function doPost(e) {
       title,
       location,
       attendeeCount: guestEmails.length,
+      action: existingEvent ? "updated" : "created",
     });
   } catch (error) {
     return jsonResponse({ ok: false, error: error.message });
   }
+}
+
+function findExistingEvent(calendar, title, start, end) {
+  const events = calendar.getEvents(start, end, { search: title });
+  return events.find((event) =>
+    event.getTitle() === title &&
+    event.getStartTime().getTime() === start.getTime() &&
+    event.getEndTime().getTime() === end.getTime()
+  ) || null;
+}
+
+function addMissingGuests(calendarEvent, guestEmails) {
+  const existingEmails = calendarEvent.getGuestList()
+    .map((guest) => String(guest.getEmail() || "").toLowerCase());
+
+  guestEmails.forEach((email) => {
+    if (!existingEmails.includes(String(email).toLowerCase())) {
+      calendarEvent.addGuest(email);
+    }
+  });
 }
 
 function calendarTitle(sport) {

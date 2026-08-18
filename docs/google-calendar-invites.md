@@ -19,4 +19,6 @@ This project can call a Google Apps Script Web App after a sports event is creat
 - Pickleball events are titled `打匹克球` and use location `匹克王`.
 - Events are created as private calendar events.
 - Participants without Email are skipped.
-- This first version sends invites only when a new event is created.
+- Invites are sent when a new event is created.
+- When a person's Email is added or changed, future events they joined are sent again to that person only.
+- The Apps Script tries to update an existing calendar event with the same title, date, and time before creating a new one.
