@@ -96,6 +96,7 @@ const elements = {
   todayMonthBtn: document.querySelector("#todayMonthBtn"),
   nextMonthBtn: document.querySelector("#nextMonthBtn"),
   eventModal: document.querySelector("#eventModal"),
+  eventModalBusy: document.querySelector("#eventModalBusy"),
   openEventModalBtn: document.querySelector("#openEventModalBtn"),
   closeEventModalBtn: document.querySelector("#closeEventModalBtn"),
   cancelEventModalBtn: document.querySelector("#cancelEventModalBtn"),
@@ -141,6 +142,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
   };
 
   try {
+    setEventFormBusy(true);
     await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
     await insertEvent(newEvent);
     const inviteResult = await sendCalendarInvite(newEvent);
@@ -150,6 +152,8 @@ elements.eventForm.addEventListener("submit", async (event) => {
     showCalendarInviteResult(inviteResult);
   } catch (error) {
     alert(`新增場次失敗：${error.message}`);
+  } finally {
+    setEventFormBusy(false);
   }
 });
 
@@ -525,7 +529,17 @@ function openEventModal() {
 
 function closeEventModal() {
   if (!elements.eventModal) return;
+  setEventFormBusy(false);
   elements.eventModal.hidden = true;
+}
+
+function setEventFormBusy(isBusy) {
+  if (elements.eventModalBusy) elements.eventModalBusy.hidden = !isBusy;
+  elements.eventForm?.querySelectorAll("input, select, button").forEach((control) => {
+    control.disabled = isBusy;
+  });
+  if (elements.closeEventModalBtn) elements.closeEventModalBtn.disabled = isBusy;
+  if (elements.cancelEventModalBtn) elements.cancelEventModalBtn.disabled = isBusy;
 }
 
 function renderControls() {
