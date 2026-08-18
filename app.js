@@ -1,6 +1,9 @@
 const supabaseUrl = "https://mpklydfhglclnebptjwv.supabase.co";
 const supabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb";
 const PENDING_PAYER = "待確認";
+const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
+const calendarInviteToken = "sports-split-calendar-invite-v1";
+const calendarOwnerEmail = "jennyshih@geosense.tw";
 
 const seedData = {
   people: ["elmo", "乃哥", "卡森", "施", "汪", "生哥", "秉樺", "芮瑜", "許", "高"],
@@ -139,6 +142,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
   try {
     await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
     await insertEvent(newEvent);
+    await sendCalendarInvite(newEvent);
     elements.eventForm.reset();
     closeEventModal();
     await loadCloudData();
@@ -307,6 +311,46 @@ async function insertEvent(event) {
     participants: event.participants,
   });
   if (error) throw error;
+}
+
+async function sendCalendarInvite(event) {
+  if (!calendarInviteWebhookUrl) return;
+
+  const attendees = event.participants
+    .map((participant) => {
+      const person = state.people.find((item) => item.name === participant.name);
+      return person?.email ? { name: participant.name, email: person.email } : null;
+    })
+    .filter(Boolean);
+
+  if (!attendees.length) return;
+
+  const payload = {
+    token: calendarInviteToken,
+    ownerEmail: calendarOwnerEmail,
+    event: {
+      date: event.date,
+      time: event.time,
+      sport: event.sport,
+      total: event.total,
+      payer: event.payer,
+      participants: event.participants.map((participant) => participant.name),
+      attendees,
+    },
+  };
+
+  try {
+    await fetch(calendarInviteWebhookUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    console.warn("Calendar invite request failed", error);
+  }
 }
 
 async function updateEventParticipants(eventId, participants) {
