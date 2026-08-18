@@ -615,14 +615,22 @@ function renderPeople() {
     .map(
       (person) => `
         <div class="person-chip" data-person-row="${escapeHtml(person.name)}">
-          <span class="person-name">${escapeHtml(person.name)}</span>
-          <span class="person-email">${escapeHtml(person.email || "未設定 Email")}</span>
-          <input class="person-edit-input" value="${escapeHtml(person.name)}" data-person-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)}" hidden />
-          <input class="person-email-input" type="email" value="${escapeHtml(person.email || "")}" data-person-email-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)} Email" hidden />
-          <button class="edit-person-button" type="button" data-edit-person="${escapeHtml(person.name)}">編輯</button>
-          <button class="save-person-button" type="button" data-save-person="${escapeHtml(person.name)}" hidden>儲存</button>
-          <button class="cancel-person-button" type="button" data-cancel-person="${escapeHtml(person.name)}" data-cancel-email="${escapeHtml(person.email)}" hidden>取消</button>
-          <button class="remove-person-button" type="button" data-remove-person="${escapeHtml(person.name)}" aria-label="移除 ${escapeHtml(person.name)}">刪除</button>
+          <div class="person-field">
+            <span class="person-field-label">姓名</span>
+            <span class="person-name">${escapeHtml(person.name)}</span>
+            <input class="person-edit-input" value="${escapeHtml(person.name)}" data-person-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)}" hidden />
+          </div>
+          <div class="person-field">
+            <span class="person-field-label">Email</span>
+            <span class="person-email" title="${escapeHtml(person.email || "未設定 Email")}">${escapeHtml(person.email || "未設定 Email")}</span>
+            <input class="person-email-input" type="email" value="${escapeHtml(person.email || "")}" data-person-email-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)} Email" hidden />
+          </div>
+          <div class="person-actions">
+            <button class="edit-person-button" type="button" data-edit-person="${escapeHtml(person.name)}">編輯</button>
+            <button class="save-person-button" type="button" data-save-person="${escapeHtml(person.name)}" hidden>儲存</button>
+            <button class="cancel-person-button" type="button" data-cancel-person="${escapeHtml(person.name)}" data-cancel-email="${escapeHtml(person.email)}" hidden>取消</button>
+            <button class="remove-person-button" type="button" data-remove-person="${escapeHtml(person.name)}" aria-label="移除 ${escapeHtml(person.name)}">刪除</button>
+          </div>
         </div>
       `,
     )

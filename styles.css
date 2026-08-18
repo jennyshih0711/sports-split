@@ -824,28 +824,41 @@ select:focus {
 
 .person-chip {
   display: grid;
-  grid-template-columns: minmax(110px, 0.7fr) minmax(180px, 1fr) auto auto auto;
+  grid-template-columns: minmax(140px, 0.45fr) minmax(260px, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  padding: 6px;
+  gap: 10px;
+  min-height: 54px;
+  padding: 9px 10px;
   background: #f5f7f4;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
 .person-chip.editing {
-  grid-template-columns: minmax(110px, 0.7fr) minmax(180px, 1fr) auto auto auto;
+  grid-template-columns: minmax(140px, 0.45fr) minmax(260px, 1fr) auto;
+}
+
+.person-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.person-field-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .person-name {
-  padding: 0 8px;
   font-size: 0.94rem;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .person-email {
-  padding: 0 8px;
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 700;
@@ -858,6 +871,15 @@ select:focus {
   min-height: 30px;
   padding: 0 8px;
   font-size: 0.9rem;
+}
+
+.person-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 150px;
 }
 
 .person-chip button,
@@ -899,7 +921,7 @@ select:focus {
 }
 
 .people-list {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1198,6 +1220,10 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .people-list {
+    grid-template-columns: 1fr;
+  }
+
   .event-fields-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1280,5 +1306,14 @@ select:focus {
   .person-chip.editing,
   .inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .person-actions {
+    justify-content: stretch;
+    min-width: 0;
+  }
+
+  .person-actions button {
+    flex: 1;
   }
 }
