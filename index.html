@@ -47,47 +47,32 @@
 
       <section class="view-panel" id="eventsView">
         <div class="events-grid">
-          <section class="panel">
-            <div class="panel-header">
+          <section class="panel calendar-panel">
+            <div class="panel-header calendar-header">
               <div>
-                <p class="section-kicker">新增場次</p>
-                <h2>記一場運動</h2>
+                <p class="section-kicker">行事曆</p>
+                <h2 id="calendarTitle">本月場次</h2>
+              </div>
+              <div class="calendar-toolbar">
+                <button class="primary-button" type="button" id="openEventModalBtn">新增場次</button>
+                <div class="calendar-actions" aria-label="月份切換">
+                  <button type="button" id="prevMonthBtn" aria-label="上一個月">‹</button>
+                  <button type="button" id="todayMonthBtn">今天</button>
+                  <button type="button" id="nextMonthBtn" aria-label="下一個月">›</button>
+                </div>
               </div>
             </div>
-            <form id="eventForm" class="compact-event-form">
-              <div class="event-fields-row">
-                <label>
-                日期
-                <input name="date" type="date" required />
-                </label>
-                <label>
-                開始時間
-                <select name="startTime" required></select>
-                </label>
-                <label>
-                結束時間
-                <select name="endTime" required></select>
-                </label>
-                <label>
-                項目
-                <input name="sport" list="sportOptions" placeholder="匹克球" required />
-                <datalist id="sportOptions"></datalist>
-                </label>
-                <label>
-                費用總計
-                <input name="total" type="number" min="0" step="1" placeholder="2000" required />
-                </label>
-                <label>
-                付款人
-                <select name="payer" required></select>
-                </label>
-              </div>
-              <div class="wide">
-                <div class="row-title">參加者與付款狀態</div>
-                <div id="participantPicker" class="participant-picker"></div>
-              </div>
-              <button class="primary-button wide" type="submit">新增場次</button>
-            </form>
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>日</span>
+              <span>一</span>
+              <span>二</span>
+              <span>三</span>
+              <span>四</span>
+              <span>五</span>
+              <span>六</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid" aria-label="月曆"></div>
+            <div id="calendarDayDetails" class="calendar-day-details"></div>
           </section>
 
           <section class="panel history-panel">
@@ -105,6 +90,55 @@
         </div>
       </section>
 
+      <div class="modal-backdrop" id="eventModal" hidden>
+        <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+          <div class="modal-header">
+            <div>
+              <p class="section-kicker">新增場次</p>
+              <h2 id="eventModalTitle">記一場運動</h2>
+            </div>
+            <button class="icon-button" type="button" id="closeEventModalBtn" aria-label="關閉">×</button>
+          </div>
+          <form id="eventForm" class="compact-event-form">
+            <div class="event-fields-row">
+              <label>
+              日期
+              <input name="date" type="date" required />
+              </label>
+              <label>
+              開始時間
+              <select name="startTime" required></select>
+              </label>
+              <label>
+              結束時間
+              <select name="endTime" required></select>
+              </label>
+              <label>
+              項目
+              <input name="sport" list="sportOptions" placeholder="匹克球" required />
+              <datalist id="sportOptions"></datalist>
+              </label>
+              <label>
+              費用總計
+              <input name="total" type="number" min="0" step="1" placeholder="2000" required />
+              </label>
+              <label>
+              付款人
+              <select name="payer" required></select>
+              </label>
+            </div>
+            <div class="wide">
+              <div class="row-title">參加者與付款狀態</div>
+              <div id="participantPicker" class="participant-picker"></div>
+            </div>
+            <div class="modal-actions">
+              <button class="ghost-panel-button" type="button" id="cancelEventModalBtn">取消</button>
+              <button class="primary-button" type="submit">新增場次</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
       <section class="view-panel" id="peopleView">
         <section class="panel">
           <div class="panel-header">
@@ -115,6 +149,7 @@
           </div>
           <form id="personForm" class="inline-form">
             <input name="name" placeholder="輸入姓名" required />
+            <input name="email" type="email" placeholder="輸入 Email" />
             <button class="primary-button" type="submit">新增</button>
           </form>
           <div id="peopleList" class="people-list"></div>

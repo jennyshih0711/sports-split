@@ -69,6 +69,8 @@ const seedData = {
 let state = { people: [], events: [] };
 let db = null;
 let clockTimer = null;
+let calendarMonth = monthStart(new Date());
+let selectedCalendarDate = dateKey(new Date());
 
 const elements = {
   totalEvents: document.querySelector("#totalEvents"),
@@ -83,6 +85,16 @@ const elements = {
   personForm: document.querySelector("#personForm"),
   peopleList: document.querySelector("#peopleList"),
   historyList: document.querySelector("#historyList"),
+  calendarTitle: document.querySelector("#calendarTitle"),
+  calendarGrid: document.querySelector("#calendarGrid"),
+  calendarDayDetails: document.querySelector("#calendarDayDetails"),
+  prevMonthBtn: document.querySelector("#prevMonthBtn"),
+  todayMonthBtn: document.querySelector("#todayMonthBtn"),
+  nextMonthBtn: document.querySelector("#nextMonthBtn"),
+  eventModal: document.querySelector("#eventModal"),
+  openEventModalBtn: document.querySelector("#openEventModalBtn"),
+  closeEventModalBtn: document.querySelector("#closeEventModalBtn"),
+  cancelEventModalBtn: document.querySelector("#cancelEventModalBtn"),
   sportFilter: document.querySelector("#sportFilter"),
   sportOptions: document.querySelector("#sportOptions"),
   resetDemoBtn: document.querySelector("#resetDemoBtn"),
@@ -128,6 +140,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
     await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
     await insertEvent(newEvent);
     elements.eventForm.reset();
+    closeEventModal();
     await loadCloudData();
   } catch (error) {
     alert(`新增場次失敗：${error.message}`);
@@ -136,11 +149,13 @@ elements.eventForm.addEventListener("submit", async (event) => {
 
 elements.personForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const name = clean(new FormData(elements.personForm).get("name"));
+  const form = new FormData(elements.personForm);
+  const name = clean(form.get("name"));
+  const email = clean(form.get("email"));
   if (!name) return;
 
   try {
-    await upsertPeople([name]);
+    await upsertPeople([{ name, email }]);
     elements.personForm.reset();
     await loadCloudData();
   } catch (error) {
@@ -149,6 +164,38 @@ elements.personForm.addEventListener("submit", async (event) => {
 });
 
 elements.sportFilter.addEventListener("change", renderHistory);
+
+elements.openEventModalBtn?.addEventListener("click", openEventModal);
+elements.closeEventModalBtn?.addEventListener("click", closeEventModal);
+elements.cancelEventModalBtn?.addEventListener("click", closeEventModal);
+elements.eventModal?.addEventListener("click", (event) => {
+  if (event.target === elements.eventModal) closeEventModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.eventModal && !elements.eventModal.hidden) {
+    closeEventModal();
+  }
+});
+
+elements.prevMonthBtn?.addEventListener("click", () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  selectedCalendarDate = "";
+  renderCalendar();
+});
+
+elements.todayMonthBtn?.addEventListener("click", () => {
+  const today = new Date();
+  calendarMonth = monthStart(today);
+  selectedCalendarDate = dateKey(today);
+  renderCalendar();
+});
+
+elements.nextMonthBtn?.addEventListener("click", () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  selectedCalendarDate = "";
+  renderCalendar();
+});
 
 elements.resetDemoBtn?.addEventListener("click", async () => {
   if (!confirm("確定要把雲端資料還原成範例資料嗎？")) return;
@@ -222,7 +269,7 @@ function makeEvent(date, time, sport, total, payer, rows) {
 
 async function loadCloudData() {
   const [{ data: peopleRows, error: peopleError }, { data: eventRows, error: eventsError }] = await Promise.all([
-    db.from("people").select("name").order("name", { ascending: true }),
+    db.from("people").select("name,email").order("name", { ascending: true }),
     db.from("events").select("id,date,time,sport,total,payer,participants,created_at").order("created_at", { ascending: false }),
   ]);
 
@@ -230,14 +277,21 @@ async function loadCloudData() {
   if (eventsError) throw eventsError;
 
   state = {
-    people: (peopleRows || []).map((row) => row.name),
+    people: (peopleRows || []).map((row) => ({ name: row.name, email: row.email || "" })),
     events: (eventRows || []).map(fromEventRow),
   };
   render();
 }
 
-async function upsertPeople(names) {
-  const rows = [...new Set(names.map(clean).filter(Boolean))].map((name) => ({ name }));
+async function upsertPeople(people) {
+  const rowsByName = new Map();
+  people.forEach((person) => {
+    const item = typeof person === "string" ? { name: person, email: "" } : person;
+    const name = clean(item.name);
+    if (!name) return;
+    rowsByName.set(name, { name, email: clean(item.email) });
+  });
+  const rows = [...rowsByName.values()];
   if (!rows.length) return;
   const { error } = await db.from("people").upsert(rows, { onConflict: "name", ignoreDuplicates: true });
   if (error) throw error;
@@ -275,16 +329,18 @@ async function deletePerson(name) {
   if (error) throw error;
 }
 
-async function renamePerson(oldName, newName) {
+async function updatePerson(oldName, newName, email) {
   const from = clean(oldName);
   const to = clean(newName);
-  if (!from || !to || from === to) return;
-  if (state.people.includes(to)) {
+  if (!from || !to) return;
+  if (from !== to && personNames().includes(to)) {
     throw new Error(`${to} 已存在，請使用不同名稱`);
   }
 
-  const peopleUpdate = await db.from("people").update({ name: to }).eq("name", from);
+  const peopleUpdate = await db.from("people").update({ name: to, email: clean(email) }).eq("name", from);
   if (peopleUpdate.error) throw peopleUpdate.error;
+
+  if (from === to) return;
 
   const affectedEvents = state.events
     .map((event) => {
@@ -363,10 +419,15 @@ function isPendingPayer(name) {
   return clean(name) === PENDING_PAYER;
 }
 
+function personNames() {
+  return state.people.map((person) => person.name);
+}
+
 function render() {
   renderControls();
   renderSettlement();
   renderPeople();
+  renderCalendar();
   renderHistory();
 }
 
@@ -379,11 +440,22 @@ function showView(viewId) {
   });
 }
 
+function openEventModal() {
+  if (!elements.eventModal) return;
+  elements.eventModal.hidden = false;
+  elements.eventForm.elements.date?.focus();
+}
+
+function closeEventModal() {
+  if (!elements.eventModal) return;
+  elements.eventModal.hidden = true;
+}
+
 function renderControls() {
   const payerSelect = elements.eventForm.elements.payer;
   payerSelect.innerHTML = [
     `<option value="${escapeHtml(PENDING_PAYER)}">${escapeHtml(PENDING_PAYER)}</option>`,
-    ...state.people.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
+    ...personNames().map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
   ].join("");
 
   elements.sportOptions.innerHTML = getSports()
@@ -400,7 +472,7 @@ function renderControls() {
   elements.sportFilter.value = getSports().includes(selectedFilter) ? selectedFilter : "all";
 
   elements.participantPicker.innerHTML = "";
-  state.people.forEach((name) => {
+  personNames().forEach((name) => {
     const row = elements.participantTemplate.content.firstElementChild.cloneNode(true);
     const checkbox = row.querySelector(".participant-check");
     checkbox.dataset.name = name;
@@ -541,14 +613,16 @@ function renderPeople() {
 
   elements.peopleList.innerHTML = state.people
     .map(
-      (name) => `
-        <div class="person-chip" data-person-row="${escapeHtml(name)}">
-          <span class="person-name">${escapeHtml(name)}</span>
-          <input class="person-edit-input" value="${escapeHtml(name)}" data-person-input="${escapeHtml(name)}" aria-label="編輯 ${escapeHtml(name)}" hidden />
-          <button class="edit-person-button" type="button" data-edit-person="${escapeHtml(name)}">編輯</button>
-          <button class="save-person-button" type="button" data-save-person="${escapeHtml(name)}" hidden>儲存</button>
-          <button class="cancel-person-button" type="button" data-cancel-person="${escapeHtml(name)}" hidden>取消</button>
-          <button class="remove-person-button" type="button" data-remove-person="${escapeHtml(name)}" aria-label="移除 ${escapeHtml(name)}">刪除</button>
+      (person) => `
+        <div class="person-chip" data-person-row="${escapeHtml(person.name)}">
+          <span class="person-name">${escapeHtml(person.name)}</span>
+          <span class="person-email">${escapeHtml(person.email || "未設定 Email")}</span>
+          <input class="person-edit-input" value="${escapeHtml(person.name)}" data-person-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)}" hidden />
+          <input class="person-email-input" type="email" value="${escapeHtml(person.email || "")}" data-person-email-input="${escapeHtml(person.name)}" aria-label="編輯 ${escapeHtml(person.name)} Email" hidden />
+          <button class="edit-person-button" type="button" data-edit-person="${escapeHtml(person.name)}">編輯</button>
+          <button class="save-person-button" type="button" data-save-person="${escapeHtml(person.name)}" hidden>儲存</button>
+          <button class="cancel-person-button" type="button" data-cancel-person="${escapeHtml(person.name)}" data-cancel-email="${escapeHtml(person.email)}" hidden>取消</button>
+          <button class="remove-person-button" type="button" data-remove-person="${escapeHtml(person.name)}" aria-label="移除 ${escapeHtml(person.name)}">刪除</button>
         </div>
       `,
     )
@@ -565,7 +639,9 @@ function renderPeople() {
     button.addEventListener("click", () => {
       const row = button.closest(".person-chip");
       const input = row?.querySelector("[data-person-input]");
+      const emailInput = row?.querySelector("[data-person-email-input]");
       if (input) input.value = button.dataset.cancelPerson;
+      if (emailInput) emailInput.value = button.dataset.cancelEmail || "";
       setPersonEditMode(row, false);
     });
   });
@@ -574,24 +650,25 @@ function renderPeople() {
     button.addEventListener("click", async () => {
       const oldName = button.dataset.savePerson;
       const input = button.closest(".person-chip")?.querySelector("[data-person-input]");
+      const emailInput = button.closest(".person-chip")?.querySelector("[data-person-email-input]");
       const newName = clean(input?.value);
+      const email = clean(emailInput?.value);
       if (!newName) {
         alert("姓名不能空白");
         return;
       }
-      if (newName === oldName) return;
       try {
         button.disabled = true;
-        await renamePerson(oldName, newName);
+        await updatePerson(oldName, newName, email);
         await loadCloudData();
       } catch (error) {
-        alert(`更新姓名失敗：${error.message}`);
+        alert(`更新人員失敗：${error.message}`);
         button.disabled = false;
       }
     });
   });
 
-  elements.peopleList.querySelectorAll("[data-person-input]").forEach((input) => {
+  elements.peopleList.querySelectorAll("[data-person-input], [data-person-email-input]").forEach((input) => {
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
@@ -620,11 +697,144 @@ function setPersonEditMode(row, isEditing) {
   if (!row) return;
   row.classList.toggle("editing", isEditing);
   row.querySelector(".person-name").hidden = isEditing;
+  row.querySelector(".person-email").hidden = isEditing;
   row.querySelector(".person-edit-input").hidden = !isEditing;
+  row.querySelector(".person-email-input").hidden = !isEditing;
   row.querySelector(".edit-person-button").hidden = isEditing;
   row.querySelector(".save-person-button").hidden = !isEditing;
   row.querySelector(".cancel-person-button").hidden = !isEditing;
   if (isEditing) row.querySelector(".person-edit-input").focus();
+}
+
+function renderCalendar() {
+  if (!elements.calendarGrid || !elements.calendarTitle) return;
+
+  const monthYear = calendarMonth.getFullYear();
+  const monthIndex = calendarMonth.getMonth();
+  const todayKey = dateKey(new Date());
+  const eventMap = eventsByDateKey();
+  const days = calendarDays(calendarMonth);
+
+  elements.calendarTitle.textContent = `${monthYear} 年 ${monthIndex + 1} 月場次`;
+  elements.calendarGrid.innerHTML = days
+    .map((day) => {
+      const key = dateKey(day);
+      const events = eventMap.get(key) || [];
+      const isCurrentMonth = day.getMonth() === monthIndex;
+      return `
+        <button class="calendar-day ${isCurrentMonth ? "" : "is-muted"} ${events.length ? "has-events" : ""} ${key === todayKey ? "is-today" : ""} ${key === selectedCalendarDate ? "is-selected" : ""}" type="button" data-calendar-date="${key}">
+          <span class="calendar-date-number">${day.getDate()}</span>
+          ${renderCalendarEventMarkers(events)}
+        </button>
+      `;
+    })
+    .join("");
+
+  elements.calendarGrid.querySelectorAll("[data-calendar-date]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedCalendarDate = button.dataset.calendarDate;
+      renderCalendar();
+    });
+  });
+
+  renderCalendarDayDetails(eventMap);
+}
+
+function renderCalendarEventMarkers(events) {
+  if (!events.length) return "";
+  const visibleEvents = events.slice().sort(compareCalendarEventTime).slice(0, 3);
+  const extraCount = events.length - visibleEvents.length;
+  return `
+    <span class="calendar-event-stack">
+      ${visibleEvents.map(renderCalendarEventMarker).join("")}
+      ${extraCount > 0 ? `<span class="calendar-more-events">另有 ${extraCount} 場</span>` : ""}
+    </span>
+  `;
+}
+
+function renderCalendarEventMarker(event) {
+  const sportType = getSportType(event.sport);
+  return `
+    <span class="calendar-event-marker ${sportType.className}">
+      <span class="calendar-event-main">
+        <span aria-hidden="true">${sportType.icon}</span>
+        <strong>${escapeHtml(formatEventTime(event.time))}</strong>
+        <span>${escapeHtml(event.sport)}</span>
+      </span>
+      <span class="calendar-event-people">${event.participants.length} 人</span>
+    </span>
+  `;
+}
+
+function participantNamesText(participants) {
+  const names = participants.map((person) => person.name).filter(Boolean);
+  return names.length ? names.join("、") : "尚未選人";
+}
+
+function compareCalendarEventTime(a, b) {
+  const aMinutes = timeRangeParts(a.time).startMinutes ?? 0;
+  const bMinutes = timeRangeParts(b.time).startMinutes ?? 0;
+  return aMinutes - bMinutes || String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+}
+
+function renderCalendarDayDetails(eventMap) {
+  if (!elements.calendarDayDetails) return;
+  const selectedDate = selectedCalendarDate || dateKey(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1));
+  const events = (eventMap.get(selectedDate) || []).slice().sort(compareEventsByRecentDate);
+  const label = formatEventDate(selectedDate);
+
+  if (!events.length) {
+    elements.calendarDayDetails.innerHTML = `
+      <div class="calendar-detail-title">${escapeHtml(label)}</div>
+      <div class="detail-empty">這天目前沒有安排場次</div>
+    `;
+    return;
+  }
+
+  elements.calendarDayDetails.innerHTML = `
+    <div class="calendar-detail-title">${escapeHtml(label)}</div>
+    <ul class="calendar-detail-list">
+      ${events
+        .map(
+          (event) => `
+            <li>
+              <strong>${escapeHtml(formatEventTime(event.time))}</strong>
+              <span class="sport-tag ${getSportType(event.sport).className}"><span aria-hidden="true">${getSportType(event.sport).icon}</span>${escapeHtml(event.sport)}</span>
+              <span>${event.participants.length} 人 · 付款人 ${escapeHtml(event.payer)}</span>
+              <span class="calendar-detail-people">參加者：${escapeHtml(participantNamesText(event.participants))}</span>
+            </li>
+          `,
+        )
+        .join("")}
+    </ul>
+  `;
+}
+
+function eventsByDateKey() {
+  const map = new Map();
+  state.events.forEach((event) => {
+    const parsed = dateParts(event.date);
+    if (!parsed) return;
+    const key = dateKey(new Date(parsed.year, parsed.month - 1, parsed.day));
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(event);
+  });
+  return map;
+}
+
+function calendarDays(monthDate) {
+  const first = monthStart(monthDate);
+  const start = new Date(first);
+  start.setDate(start.getDate() - start.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return day;
+  });
+}
+
+function monthStart(value) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
 }
 
 function renderHistory() {
@@ -644,7 +854,7 @@ function renderHistory() {
       const unpaidCount = event.participants.length - paidCount;
       const sportType = getSportType(event.sport);
       const editorPeople = [
-        ...new Set(state.people.concat(event.participants.map((person) => person.name), isPendingPayer(event.payer) ? [] : event.payer).filter(Boolean)),
+        ...new Set(personNames().concat(event.participants.map((person) => person.name), isPendingPayer(event.payer) ? [] : event.payer).filter(Boolean)),
       ];
       const payerOptions = [PENDING_PAYER, ...editorPeople.filter((name) => !isPendingPayer(name))];
       const isUpcoming = !isCompletedEvent(event);
@@ -961,6 +1171,13 @@ function todayNumber() {
   const month = String(today.getMonth() + 1).padStart(2, "0");
   const day = String(today.getDate()).padStart(2, "0");
   return Number(`${year}${month}${day}`);
+}
+
+function dateKey(value) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function currentMinutes() {
