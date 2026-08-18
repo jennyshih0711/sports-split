@@ -142,10 +142,11 @@ elements.eventForm.addEventListener("submit", async (event) => {
   try {
     await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
     await insertEvent(newEvent);
-    await sendCalendarInvite(newEvent);
+    const inviteResult = await sendCalendarInvite(newEvent);
     elements.eventForm.reset();
     closeEventModal();
     await loadCloudData();
+    showCalendarInviteResult(inviteResult);
   } catch (error) {
     alert(`新增場次失敗：${error.message}`);
   }
@@ -314,16 +315,19 @@ async function insertEvent(event) {
 }
 
 async function sendCalendarInvite(event) {
-  if (!calendarInviteWebhookUrl) return;
+  if (!calendarInviteWebhookUrl) return { status: "disabled" };
 
-  const attendees = event.participants
-    .map((participant) => {
-      const person = state.people.find((item) => item.name === participant.name);
-      return person?.email ? { name: participant.name, email: person.email } : null;
-    })
-    .filter(Boolean);
+  const attendeeRows = event.participants.map((participant) => {
+    const person = state.people.find((item) => item.name === participant.name);
+    return {
+      name: participant.name,
+      email: clean(person?.email),
+    };
+  });
+  const attendees = attendeeRows.filter((person) => person.email);
+  const skipped = attendeeRows.filter((person) => !person.email).map((person) => person.name);
 
-  if (!attendees.length) return;
+  if (!attendees.length) return { status: "skipped", skipped };
 
   const payload = {
     token: calendarInviteToken,
@@ -348,8 +352,26 @@ async function sendCalendarInvite(event) {
       },
       body: JSON.stringify(payload),
     });
+    return { status: "sent", count: attendees.length, skipped };
   } catch (error) {
     console.warn("Calendar invite request failed", error);
+    return { status: "failed", message: error.message, skipped };
+  }
+}
+
+function showCalendarInviteResult(result) {
+  if (!result || result.status === "disabled") return;
+  if (result.status === "sent") {
+    const skippedText = result.skipped.length ? `，未設定 Email 略過：${result.skipped.join("、")}` : "";
+    alert(`已送出行事曆邀請給 ${result.count} 人${skippedText}`);
+    return;
+  }
+  if (result.status === "skipped") {
+    alert(`這次沒有送出行事曆邀請，因為參加者都沒有設定 Email。略過：${result.skipped.join("、")}`);
+    return;
+  }
+  if (result.status === "failed") {
+    alert(`場次已新增，但行事曆邀請送出失敗：${result.message}`);
   }
 }
 
