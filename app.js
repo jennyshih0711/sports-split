@@ -78,6 +78,7 @@ let selectedCalendarDate = dateKey(new Date());
 const elements = {
   totalEvents: document.querySelector("#totalEvents"),
   totalPeople: document.querySelector("#totalPeople"),
+  appNotice: document.querySelector("#appNotice"),
   openTransfers: document.querySelector("#openTransfers"),
   openAmount: document.querySelector("#openAmount"),
   settlementCount: document.querySelector("#settlementCount"),
@@ -363,16 +364,26 @@ function showCalendarInviteResult(result) {
   if (!result || result.status === "disabled") return;
   if (result.status === "sent") {
     const skippedText = result.skipped.length ? `，未設定 Email 略過：${result.skipped.join("、")}` : "";
+    showNotice(`已送出行事曆邀請給 ${result.count} 人${skippedText}`, "success");
     alert(`已送出行事曆邀請給 ${result.count} 人${skippedText}`);
     return;
   }
   if (result.status === "skipped") {
+    showNotice(`這次沒有送出行事曆邀請，因為參加者都沒有設定 Email。略過：${result.skipped.join("、")}`, "warning");
     alert(`這次沒有送出行事曆邀請，因為參加者都沒有設定 Email。略過：${result.skipped.join("、")}`);
     return;
   }
   if (result.status === "failed") {
+    showNotice(`場次已新增，但行事曆邀請送出失敗：${result.message}`, "error");
     alert(`場次已新增，但行事曆邀請送出失敗：${result.message}`);
   }
+}
+
+function showNotice(message, type = "info") {
+  if (!elements.appNotice) return;
+  elements.appNotice.textContent = message;
+  elements.appNotice.className = `app-notice ${type}`;
+  elements.appNotice.hidden = false;
 }
 
 async function updateEventParticipants(eventId, participants) {

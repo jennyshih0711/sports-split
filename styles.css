@@ -71,6 +71,35 @@ button {
   letter-spacing: 0;
 }
 
+.app-notice {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  background: #eaf1f7;
+  border: 1px solid #9cc6e6;
+  border-radius: 8px;
+  color: var(--blue);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.app-notice.success {
+  color: #1f5d43;
+  background: #ddf3e6;
+  border-color: #9bd0af;
+}
+
+.app-notice.warning {
+  color: #8a5c00;
+  background: #fff1c7;
+  border-color: #edc879;
+}
+
+.app-notice.error {
+  color: #a53b3b;
+  background: #fae1df;
+  border-color: #efb2ad;
+}
+
 .eyebrow,
 .section-kicker {
   margin: 0;
