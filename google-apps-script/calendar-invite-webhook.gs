@@ -29,6 +29,10 @@ function doPost(e) {
       return jsonResponse({ ok: true, id: existingEvent.getId(), title, action: "deleted" });
     }
 
+    if (action === "addGuests" && !existingEvent) {
+      return jsonResponse({ ok: true, skipped: true, reason: "Calendar event not found", action: "not_found" });
+    }
+
     const attendees = Array.isArray(eventData.attendees) ? eventData.attendees : [];
     const guestEmails = attendees.map((person) => person.email).filter(Boolean);
 
@@ -56,9 +60,6 @@ function doPost(e) {
 
     if (existingEvent) {
       addMissingGuests(calendarEvent, guestEmails);
-    } else {
-      calendarEvent.setVisibility(CalendarApp.Visibility.PRIVATE);
-      calendarEvent.setGuestsCanSeeGuests(false);
     }
 
     return jsonResponse({

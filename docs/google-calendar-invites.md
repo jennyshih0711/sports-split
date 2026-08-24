@@ -21,5 +21,7 @@ This project can call a Google Apps Script Web App after a sports event is creat
 - Participants without Email are skipped.
 - Invites are sent when a new event is created.
 - When a person's Email is added or changed, future events they joined are sent again to that person only.
-- The Apps Script tries to update an existing calendar event with the same title, date, and time before creating a new one.
+- When an event is edited, invites are sent only to newly added participants.
+- Supplemental invites only add guests to an existing calendar event; they do not create a new calendar event.
+- The Apps Script tries to update an existing calendar event with the same title, date, and time before creating a new one for new site events.
 - When an event is deleted from the site, the Apps Script tries to delete the matching calendar event.

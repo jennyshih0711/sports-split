@@ -319,7 +319,7 @@ async function insertEvent(event) {
   if (error) throw error;
 }
 
-async function sendCalendarInvite(event, attendeeRows = null) {
+async function sendCalendarInvite(event, attendeeRows = null, action = "invite") {
   if (!calendarInviteWebhookUrl) return { status: "disabled" };
 
   const inviteRows =
@@ -339,6 +339,7 @@ async function sendCalendarInvite(event, attendeeRows = null) {
   const payload = {
     token: calendarInviteToken,
     ownerEmail: calendarOwnerEmail,
+    action,
     event: {
       date: event.date,
       time: event.time,
@@ -363,6 +364,34 @@ async function sendCalendarInvite(event, attendeeRows = null) {
   } catch (error) {
     console.warn("Calendar invite request failed", error);
     return { status: "failed", message: error.message, skipped };
+  }
+}
+
+async function sendAddedParticipantInvites(event, addedNames) {
+  const attendeeRows = addedNames.map((name) => {
+    const person = state.people.find((item) => item.name === name);
+    return {
+      name,
+      email: clean(person?.email),
+    };
+  });
+
+  return sendCalendarInvite(event, attendeeRows, "addGuests");
+}
+
+function showAddedParticipantInviteResult(result, addedNames) {
+  if (!addedNames.length || !result || result.status === "disabled") return;
+  if (result.status === "sent") {
+    const skippedText = result.skipped.length ? `，未設定 Email 略過：${result.skipped.join("、")}` : "";
+    showNotice(`場次已更新，已補寄邀請給新增參加者 ${result.count} 人${skippedText}`, "success");
+    return;
+  }
+  if (result.status === "skipped") {
+    showNotice(`場次已更新；新增參加者沒有可補寄的 Email。略過：${result.skipped.join("、")}`, "warning");
+    return;
+  }
+  if (result.status === "failed") {
+    showNotice(`場次已更新，但新增參加者邀請補寄失敗：${result.message}`, "warning");
   }
 }
 
@@ -501,7 +530,7 @@ async function sendSupplementalCalendarInvites(events, personName, email) {
 
   if (!targetEvents.length) return { status: "none" };
 
-  const results = await Promise.all(targetEvents.map((event) => sendCalendarInvite(event, [{ name: personName, email }])));
+  const results = await Promise.all(targetEvents.map((event) => sendCalendarInvite(event, [{ name: personName, email }], "addGuests")));
   const sent = results.filter((result) => result.status === "sent").length;
   const failed = results.filter((result) => result.status === "failed");
 
@@ -1201,8 +1230,13 @@ function renderHistory() {
 
       try {
         button.disabled = true;
+        const originalEvent = state.events.find((event) => event.id === button.dataset.saveEvent);
+        const originalParticipantNames = new Set((originalEvent?.participants || []).map((person) => person.name));
+        const addedParticipantNames = participants.map((person) => person.name).filter((name) => !originalParticipantNames.has(name));
         await updateEvent(button.dataset.saveEvent, changes);
+        const inviteResult = addedParticipantNames.length ? await sendAddedParticipantInvites(changes, addedParticipantNames) : null;
         await loadCloudData();
+        showAddedParticipantInviteResult(inviteResult, addedParticipantNames);
       } catch (error) {
         alert(`更新場次失敗：${error.message}`);
         button.disabled = false;
