@@ -309,6 +309,7 @@ button {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
+  min-width: 0;
 }
 
 .calendar-weekdays span {
@@ -322,6 +323,7 @@ button {
   display: grid;
   align-content: start;
   gap: 5px;
+  min-width: 0;
   min-height: 84px;
   padding: 8px;
   color: var(--ink);
@@ -365,6 +367,7 @@ button {
 .calendar-event-marker {
   display: grid;
   gap: 2px;
+  min-width: 0;
   padding: 4px 5px;
   color: var(--ink);
   border: 1px solid var(--line);
@@ -1316,6 +1319,29 @@ select:focus {
   .modal-header {
     align-items: flex-start;
   }
+
+  .event-flag,
+  .event-main,
+  .event-status-summary,
+  .participant-editor,
+  .event-actions {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .event-flag {
+    min-width: 0;
+  }
+
+  .event-status-summary {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .event-actions {
+    justify-content: flex-start;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1328,8 +1354,40 @@ select:focus {
     padding: 22px;
   }
 
+  .panel {
+    padding: 14px;
+  }
+
+  .calendar-panel {
+    overflow: hidden;
+  }
+
+  .calendar-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .calendar-header h2 {
+    max-width: 100%;
+    font-size: 1.6rem;
+    line-height: 1.2;
+    word-break: keep-all;
+  }
+
   #sportFilter {
     width: 100%;
+  }
+
+  .history-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .history-header h2 {
+    font-size: 1.35rem;
   }
 
   .calendar-toolbar,
@@ -1339,7 +1397,10 @@ select:focus {
   }
 
   .calendar-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
     justify-content: stretch;
+    gap: 8px;
   }
 
   .calendar-toolbar .primary-button,
@@ -1348,18 +1409,122 @@ select:focus {
     flex: 1;
   }
 
+  .calendar-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    gap: 4px;
+  }
+
+  .calendar-weekdays span {
+    font-size: 0.72rem;
+  }
+
   .calendar-day {
-    min-height: 64px;
-    padding: 6px;
+    min-height: 58px;
+    padding: 5px 3px;
+    border-radius: 7px;
+  }
+
+  .calendar-date-number {
+    font-size: 0.82rem;
   }
 
   .calendar-event-marker {
-    padding: 3px 4px;
-    font-size: 0.66rem;
+    gap: 1px;
+    padding: 2px 1px;
+    border-radius: 6px;
+    font-size: 0.54rem;
+  }
+
+  .calendar-event-main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1px;
+    align-items: center;
+    justify-items: center;
+  }
+
+  .calendar-event-main span[aria-hidden] {
+    display: none;
+  }
+
+  .calendar-event-main strong {
+    display: block;
+    font-size: 0.54rem;
+    line-height: 1.05;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .calendar-event-main span:last-child {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.5rem;
+    line-height: 1.05;
+    text-align: center;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
   .calendar-event-people {
-    font-size: 0.62rem;
+    display: none;
+  }
+
+  .calendar-more-events {
+    font-size: 0.58rem;
+  }
+
+  .calendar-day-details {
+    padding: 8px;
+  }
+
+  .calendar-detail-list li {
+    grid-template-columns: auto 1fr;
+    gap: 6px;
+  }
+
+  .calendar-detail-list li > span:not(.sport-tag):not(.calendar-detail-people) {
+    grid-column: 1 / -1;
+  }
+
+  .history-list {
+    gap: 8px;
+  }
+
+  .event-card {
+    padding: 10px;
+  }
+
+  .event-view {
+    gap: 8px;
+  }
+
+  .event-title {
+    gap: 5px;
+    font-size: 0.86rem;
+  }
+
+  .event-meta {
+    font-size: 0.76rem;
+  }
+
+  .participant-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .status-control {
+    grid-template-columns: minmax(0, 1fr) 82px;
+  }
+
+  .event-actions button {
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
   }
 
   .modal-backdrop {
