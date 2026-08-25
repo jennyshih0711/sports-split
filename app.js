@@ -887,9 +887,8 @@ function renderSettlement() {
 
 function renderSettlementPreview(transfers) {
   return (
-    renderTransferCards(transfers) +
     `
-      <div class="batch-settlement-actions">
+      <div class="batch-settlement-actions top-settlement-actions">
         <div>
           <strong>建立付款批次</strong>
           <span>先固定目前 ${transfers.length} 筆轉帳，之後可分次勾選完成；全部完成後才會回寫場次。</span>
@@ -899,7 +898,8 @@ function renderSettlementPreview(transfers) {
           <span>建立付款批次</span>
         </button>
       </div>
-    `
+    ` +
+    renderTransferCards(transfers)
   );
 }
 

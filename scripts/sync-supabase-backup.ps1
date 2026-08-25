@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $SupabaseUrl = "https://mpklydfhglclnebptjwv.supabase.co"
 $SupabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb"
@@ -25,6 +26,13 @@ New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
 
 $People = @(Get-SupabaseTable -Table "people" -Order "name.asc")
 $Events = @(Get-SupabaseTable -Table "events" -Order "created_at.desc")
+$SettlementPayments = @(Get-SupabaseTable -Table "settlement_payments" -Order "created_at.desc")
+
+try {
+  $SettlementBatches = @(Get-SupabaseTable -Table "settlement_batches" -Order "created_at.desc")
+} catch {
+  $SettlementBatches = @()
+}
 
 $Payload = [ordered]@{
   exported_at = (Get-Date).ToString("o")
@@ -32,9 +40,13 @@ $Payload = [ordered]@{
   counts = [ordered]@{
     people = $People.Count
     events = $Events.Count
+    settlement_payments = $SettlementPayments.Count
+    settlement_batches = $SettlementBatches.Count
   }
   people = $People
   events = $Events
+  settlement_payments = $SettlementPayments
+  settlement_batches = $SettlementBatches
 }
 
 $Json = $Payload | ConvertTo-Json -Depth 50

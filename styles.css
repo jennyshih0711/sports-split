@@ -812,6 +812,10 @@ button {
   min-height: 40px;
 }
 
+.top-settlement-actions {
+  position: static;
+}
+
 .transfer-details {
   grid-column: 1 / -1;
   padding-top: 4px;
