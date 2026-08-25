@@ -264,6 +264,10 @@ button {
   min-height: 360px;
 }
 
+.payment-history-panel {
+  margin-top: 12px;
+}
+
 .calendar-panel {
   display: grid;
   gap: 10px;
@@ -617,6 +621,7 @@ button {
 }
 
 .settlement-list,
+.payment-history-list,
 .people-list {
   display: grid;
   gap: 10px;
@@ -635,6 +640,17 @@ button {
   align-items: center;
   padding: 14px;
   background: #f8fbf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.payment-record-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  background: #fbfcfb;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -1541,6 +1557,7 @@ select:focus {
   .event-fields-row,
   .event-edit-fields,
   .detail-grid,
+  .payment-record-card,
   .settlement-summary,
   .participant-row,
   .person-chip,

@@ -69,7 +69,7 @@ const seedData = {
   ],
 };
 
-let state = { people: [], events: [] };
+let state = { people: [], events: [], paymentHistory: [], paymentHistoryError: "" };
 let db = null;
 let clockTimer = null;
 let calendarMonth = monthStart(new Date());
@@ -83,6 +83,7 @@ const elements = {
   openAmount: document.querySelector("#openAmount"),
   settlementCount: document.querySelector("#settlementCount"),
   settlementList: document.querySelector("#settlementList"),
+  paymentHistoryList: document.querySelector("#paymentHistoryList"),
   eventForm: document.querySelector("#eventForm"),
   participantPicker: document.querySelector("#participantPicker"),
   participantTemplate: document.querySelector("#participantTemplate"),
@@ -278,9 +279,18 @@ function makeEvent(date, time, sport, total, payer, rows) {
 }
 
 async function loadCloudData() {
-  const [{ data: peopleRows, error: peopleError }, { data: eventRows, error: eventsError }] = await Promise.all([
+  const [
+    { data: peopleRows, error: peopleError },
+    { data: eventRows, error: eventsError },
+    { data: paymentRows, error: paymentsError },
+  ] = await Promise.all([
     db.from("people").select("name,email").order("name", { ascending: true }),
     db.from("events").select("id,date,time,sport,total,payer,participants,created_at").order("created_at", { ascending: false }),
+    db
+      .from("settlement_payments")
+      .select("id,from_person,to_person,amount,details,created_at")
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   if (peopleError) throw peopleError;
@@ -289,6 +299,8 @@ async function loadCloudData() {
   state = {
     people: (peopleRows || []).map((row) => ({ name: row.name, email: row.email || "" })),
     events: (eventRows || []).map(fromEventRow),
+    paymentHistory: paymentsError ? [] : (paymentRows || []).map(fromPaymentRow),
+    paymentHistoryError: paymentsError ? paymentsError.message : "",
   };
   render();
 }
@@ -470,6 +482,19 @@ async function updateEventParticipants(eventId, participants) {
   if (error) throw error;
 }
 
+async function insertSettlementPayment(transfer) {
+  const { error } = await db.from("settlement_payments").insert({
+    from_person: transfer.from,
+    to_person: transfer.to,
+    amount: transfer.amount,
+    details: {
+      fromDetails: transfer.fromDetails,
+      toDetails: transfer.toDetails,
+    },
+  });
+  if (error) throw error;
+}
+
 async function updateEvent(eventId, changes) {
   const { error } = await db.from("events").update(changes).eq("id", eventId);
   if (error) throw error;
@@ -573,6 +598,8 @@ async function clearCloudData() {
   if (eventDelete.error) throw eventDelete.error;
   const peopleDelete = await db.from("people").delete().neq("name", "__never__");
   if (peopleDelete.error) throw peopleDelete.error;
+  const paymentDelete = await db.from("settlement_payments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (paymentDelete.error) throw paymentDelete.error;
 }
 
 async function seedCloudData() {
@@ -593,6 +620,7 @@ function subscribeToChanges() {
   db.channel("sports-splitter-changes")
     .on("postgres_changes", { event: "*", schema: "public", table: "people" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => loadCloudData())
+    .on("postgres_changes", { event: "*", schema: "public", table: "settlement_payments" }, () => loadCloudData())
     .subscribe();
 }
 
@@ -609,14 +637,29 @@ function fromEventRow(row) {
   };
 }
 
+function fromPaymentRow(row) {
+  const details = row.details || {};
+  return {
+    id: row.id,
+    from: row.from_person,
+    to: row.to_person,
+    amount: Number(row.amount || 0),
+    fromDetails: Array.isArray(details.fromDetails) ? details.fromDetails : [],
+    toDetails: Array.isArray(details.toDetails) ? details.toDetails : [],
+    createdAt: row.created_at,
+  };
+}
+
 function renderLoading() {
   elements.settlementList.innerHTML = `<div class="empty-state">正在載入共用資料...</div>`;
+  if (elements.paymentHistoryList) elements.paymentHistoryList.innerHTML = `<div class="empty-state">正在載入付款紀錄...</div>`;
   elements.peopleList.innerHTML = `<div class="empty-state">正在載入共用資料...</div>`;
   elements.historyList.innerHTML = `<div class="empty-state">正在載入共用資料...</div>`;
 }
 
 function renderError(message) {
   elements.settlementList.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+  if (elements.paymentHistoryList) elements.paymentHistoryList.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
   elements.peopleList.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
   elements.historyList.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
@@ -636,6 +679,7 @@ function personNames() {
 function render() {
   renderControls();
   renderSettlement();
+  renderPaymentHistory();
   renderPeople();
   renderCalendar();
   renderHistory();
@@ -774,14 +818,60 @@ function renderSettlement() {
 
       try {
         button.disabled = true;
+        await insertSettlementPayment(transfer);
         await markTransferDetailsPaid(transfer);
         await loadCloudData();
       } catch (error) {
-        alert(`更新付款狀態失敗：${error.message}`);
+        alert(`更新付款狀態失敗：${error.message}。如果尚未建立付款紀錄資料表，請先執行 database/create-settlement-payments.sql。`);
         button.disabled = false;
       }
     });
   });
+}
+
+function renderPaymentHistory() {
+  if (!elements.paymentHistoryList) return;
+  if (state.paymentHistoryError) {
+    elements.paymentHistoryList.innerHTML = `
+      <div class="empty-state">付款紀錄資料表尚未建立，請先執行 database/create-settlement-payments.sql</div>
+    `;
+    return;
+  }
+  if (!state.paymentHistory.length) {
+    elements.paymentHistoryList.innerHTML = `<div class="empty-state">目前還沒有付款紀錄</div>`;
+    return;
+  }
+
+  elements.paymentHistoryList.innerHTML = state.paymentHistory
+    .map(
+      (payment) => `
+        <article class="payment-record-card">
+          <div>
+            <div class="transfer-route">
+              <span>${escapeHtml(payment.from)}</span>
+              <span class="arrow">→</span>
+              <span>${escapeHtml(payment.to)}</span>
+            </div>
+            <div class="event-meta">${escapeHtml(formatPaymentDate(payment.createdAt))}</div>
+          </div>
+          <div class="amount">${money(payment.amount)}</div>
+          <details class="transfer-details">
+            <summary>查看付款明細</summary>
+            <div class="detail-grid">
+              <div>
+                <h3>${escapeHtml(payment.from)} 的未付款來源</h3>
+                ${renderDetailList(payment.fromDetails)}
+              </div>
+              <div>
+                <h3>${escapeHtml(payment.to)} 的代墊來源</h3>
+                ${renderDetailList(payment.toDetails)}
+              </div>
+            </div>
+          </details>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 function renderDetailList(items) {
@@ -1450,6 +1540,19 @@ function formatEventDate(value) {
   const date = new Date(parsed.year, parsed.month - 1, parsed.day);
   const weekday = ["日", "一", "二", "三", "四", "五", "六"][date.getDay()];
   return `${parsed.year}/${String(parsed.month).padStart(2, "0")}/${String(parsed.day).padStart(2, "0")}（週${weekday}）`;
+}
+
+function formatPaymentDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-Hant", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function dateParts(value) {
