@@ -4,7 +4,6 @@ const PENDING_PAYER = "待確認";
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
-const defaultAdminUsername = "jennyshih0711";
 
 const seedData = {
   people: ["elmo", "乃哥", "卡森", "施", "汪", "生哥", "秉樺", "芮瑜", "許", "高"],
@@ -72,7 +71,6 @@ const seedData = {
 
 let state = { people: [], events: [], paymentHistory: [], paymentHistoryError: "" };
 let db = null;
-let currentUser = null;
 let clockTimer = null;
 let calendarMonth = monthStart(new Date());
 let selectedCalendarDate = dateKey(new Date());
@@ -85,7 +83,6 @@ const elements = {
   openAmount: document.querySelector("#openAmount"),
   settlementCount: document.querySelector("#settlementCount"),
   settlementList: document.querySelector("#settlementList"),
-  adminAuthPanel: document.querySelector("#adminAuthPanel"),
   paymentHistoryList: document.querySelector("#paymentHistoryList"),
   eventForm: document.querySelector("#eventForm"),
   participantPicker: document.querySelector("#participantPicker"),
@@ -242,7 +239,6 @@ async function initApp() {
   renderLoading();
   try {
     db = window.supabase.createClient(supabaseUrl, supabaseKey);
-    await initAuth();
     await loadCloudData();
     if (state.people.length === 0 && state.events.length === 0) {
       await seedCloudData();
@@ -253,34 +249,6 @@ async function initApp() {
   } catch (error) {
     renderError(`無法連線到共用資料庫：${error.message}`);
   }
-}
-
-async function initAuth() {
-  const savedUsername = localStorage.getItem("sportsSplitAdminUser");
-  currentUser = savedUsername ? { username: savedUsername } : null;
-  renderAdminAuth();
-}
-
-function isAdminUser() {
-  return Boolean(clean(currentUser?.username));
-}
-
-async function signInAdmin(username, password) {
-  const { data, error } = await db.rpc("verify_simple_admin_login", {
-    input_username: clean(username),
-    input_password: password,
-  });
-  if (error) throw error;
-  if (!data) {
-    throw new Error("帳號或密碼錯誤");
-  }
-  localStorage.setItem("sportsSplitAdminUser", clean(username));
-  currentUser = { username: clean(username) };
-}
-
-async function signOutAdmin() {
-  localStorage.removeItem("sportsSplitAdminUser");
-  currentUser = null;
 }
 
 function startClockRefresh() {
@@ -710,65 +678,11 @@ function personNames() {
 
 function render() {
   renderControls();
-  renderAdminAuth();
   renderSettlement();
   renderPaymentHistory();
   renderPeople();
   renderCalendar();
   renderHistory();
-}
-
-function renderAdminAuth() {
-  if (!elements.adminAuthPanel) return;
-  const username = clean(currentUser?.username);
-  if (isAdminUser()) {
-    elements.adminAuthPanel.innerHTML = `
-      <div class="admin-auth-card is-admin">
-        <span>管理者：${escapeHtml(username)}</span>
-        <button class="ghost-panel-button" type="button" data-admin-sign-out>登出</button>
-      </div>
-    `;
-  } else {
-    elements.adminAuthPanel.innerHTML = `
-      <details class="admin-login-menu">
-        <summary>登入</summary>
-        <form class="admin-auth-card" data-admin-login-form>
-          <strong>管理者登入</strong>
-          <input name="username" type="text" value="${escapeHtml(defaultAdminUsername)}" aria-label="管理者帳號" required />
-          <input name="password" type="password" aria-label="管理者密碼" placeholder="密碼" required />
-          <button class="primary-button" type="submit">登入</button>
-        </form>
-      </details>
-    `;
-  }
-
-  elements.adminAuthPanel.querySelector("[data-admin-login-form]")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const usernameValue = clean(form.get("username"));
-    const password = String(form.get("password") || "");
-    if (!usernameValue || !password) return;
-    try {
-      await signInAdmin(usernameValue, password);
-      showNotice("已登入管理者模式。", "success");
-      renderAdminAuth();
-      renderSettlement();
-      renderHistory();
-    } catch (error) {
-      alert(`登入失敗：${error.message}`);
-    }
-  });
-
-  elements.adminAuthPanel.querySelector("[data-admin-sign-out]")?.addEventListener("click", async () => {
-    try {
-      await signOutAdmin();
-      renderAdminAuth();
-      renderSettlement();
-      renderHistory();
-    } catch (error) {
-      alert(`登出失敗：${error.message}`);
-    }
-  });
 }
 
 function showView(viewId) {
@@ -848,7 +762,6 @@ function hourOptions(selectedHour) {
 function renderSettlement() {
   const transfers = calculateSettlement();
   const totalAmount = transfers.reduce((sum, transfer) => sum + transfer.amount, 0);
-  const canMarkPaid = isAdminUser();
 
   if (elements.totalEvents) elements.totalEvents.textContent = state.events.length;
   if (elements.totalPeople) elements.totalPeople.textContent = state.people.length;
@@ -874,16 +787,10 @@ function renderSettlement() {
             <div class="event-meta">全體抵銷後的最簡化轉帳</div>
           </div>
           <div class="amount">${money(transfer.amount)}</div>
-          ${
-            canMarkPaid
-              ? `
-                <button class="mark-paid-button" type="button" data-mark-paid="${transfer.id}">
-                  <span class="check-box" aria-hidden="true"></span>
-                  <span>我已經完成付款</span>
-                </button>
-              `
-              : `<span class="admin-only-note">管理者登入後可完成付款</span>`
-          }
+          <button class="mark-paid-button" type="button" data-mark-paid="${transfer.id}">
+            <span class="check-box" aria-hidden="true"></span>
+            <span>我已經完成付款</span>
+          </button>
           <details class="transfer-details">
             <summary>查看合併明細</summary>
             <p>此筆為全體淨額合併結果，可能不是單一場次的一對一付款。</p>
@@ -905,10 +812,6 @@ function renderSettlement() {
 
   elements.settlementList.querySelectorAll("[data-mark-paid]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!isAdminUser()) {
-        alert("只有管理者可以完成付款。");
-        return;
-      }
       if (!confirm("確定已付款了嗎？")) return;
       const transfer = transfers.find((item) => item.id === button.dataset.markPaid);
       if (!transfer) return;
@@ -1255,7 +1158,6 @@ function monthStart(value) {
 
 function renderHistory() {
   const filter = elements.sportFilter.value || "all";
-  const canManageEvents = isAdminUser();
   const events = (filter === "all" ? state.events : state.events.filter((event) => event.sport === filter))
     .slice()
     .sort(compareEventsByRecentDate);
@@ -1301,7 +1203,7 @@ function renderHistory() {
                   (person) => `
                     <label class="status-control ${person.status === "paid" ? "is-paid" : "is-unpaid"} ${person.name === event.payer ? "is-payer" : ""}">
                       <span>${escapeHtml(person.name)}</span>
-                      <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer || !canManageEvents ? "disabled" : ""}>
+                      <select data-event-id="${event.id}" data-person-name="${escapeHtml(person.name)}" ${person.name === event.payer ? "disabled" : ""}>
                         <option value="paid" ${person.status === "paid" ? "selected" : ""}>已付款</option>
                         <option value="unpaid" ${person.status === "unpaid" ? "selected" : ""}>未付款</option>
                       </select>
@@ -1310,16 +1212,10 @@ function renderHistory() {
                 )
                 .join("")}
             </div>
-            ${
-              canManageEvents
-                ? `
-                  <div class="event-actions">
-                    <button class="edit-event-button" type="button" data-edit-event="${event.id}">編輯</button>
-                    <button type="button" data-remove-event="${event.id}">刪除</button>
-                  </div>
-                `
-                : `<div class="event-actions"><span class="admin-only-note">管理者可編輯</span></div>`
-            }
+            <div class="event-actions">
+              <button class="edit-event-button" type="button" data-edit-event="${event.id}">編輯</button>
+              <button type="button" data-remove-event="${event.id}">刪除</button>
+            </div>
           </div>
           <div class="event-edit-panel" hidden>
             <div class="event-edit-fields">

@@ -64,13 +64,6 @@ button {
   box-shadow: var(--shadow);
 }
 
-.summary-band .admin-auth-panel {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 2;
-}
-
 .summary-band h1 {
   margin: 0;
   max-width: 720px;
@@ -200,93 +193,6 @@ button {
   color: var(--muted);
   font-size: 0.88rem;
   font-weight: 700;
-}
-
-.admin-login-menu {
-  position: relative;
-}
-
-.admin-login-menu summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 13px;
-  color: var(--green-dark);
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(31, 42, 40, 0.12);
-  font-size: 0.84rem;
-  font-weight: 900;
-  list-style: none;
-  cursor: pointer;
-}
-
-.admin-login-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.admin-login-menu[open] summary {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.admin-auth-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  width: 240px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  border-radius: 8px;
-  color: var(--ink);
-  box-shadow: 0 10px 24px rgba(31, 42, 40, 0.12);
-}
-
-.admin-auth-card.is-admin {
-  grid-template-columns: auto auto;
-  width: auto;
-  background: #edf8f1;
-  border-color: #a9d9bc;
-}
-
-.admin-login-menu .admin-auth-card {
-  position: absolute;
-  top: 34px;
-  right: 0;
-  border-top-right-radius: 0;
-  z-index: 3;
-}
-
-.admin-auth-card strong,
-.admin-auth-card span {
-  display: block;
-}
-
-.admin-auth-card strong {
-  font-size: 0.86rem;
-}
-
-.admin-auth-card span,
-.admin-only-note {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.admin-auth-card input {
-  min-height: 34px;
-  padding: 0 9px;
-  font-size: 0.84rem;
-}
-
-.admin-auth-card .primary-button,
-.admin-auth-card .ghost-panel-button {
-  min-height: 34px;
-  font-size: 0.84rem;
 }
 
 .settlement-summary article {
@@ -794,17 +700,6 @@ button {
 .mark-paid-button:disabled {
   opacity: 0.58;
   cursor: wait;
-}
-
-.admin-only-note {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  padding: 0 10px;
-  background: #edf0ec;
-  border-radius: 8px;
-  white-space: nowrap;
 }
 
 .transfer-details {
@@ -1411,15 +1306,6 @@ select:focus {
   .summary-band {
     display: grid;
     align-items: end;
-  }
-
-  .summary-band .admin-auth-card {
-    width: 220px;
-  }
-
-  .summary-band .admin-auth-panel {
-    top: 10px;
-    right: 10px;
   }
 
   .kpi-grid {
