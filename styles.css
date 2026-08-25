@@ -194,19 +194,18 @@ button {
   font-weight: 700;
 }
 
-.admin-auth-panel {
-  margin: 0 0 12px;
-}
-
 .admin-auth-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  padding: 12px;
-  background: #f8fbf8;
-  border: 1px solid var(--line);
+  width: min(300px, 100%);
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.64);
   border-radius: 8px;
+  color: var(--ink);
+  box-shadow: 0 10px 24px rgba(31, 42, 40, 0.12);
 }
 
 .admin-auth-card.is-admin {
@@ -221,7 +220,7 @@ button {
 }
 
 .admin-auth-card strong {
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 
 .admin-auth-card span,
@@ -232,12 +231,15 @@ button {
 }
 
 .admin-auth-card input {
-  min-height: 36px;
+  min-height: 34px;
+  padding: 0 9px;
+  font-size: 0.84rem;
 }
 
 .admin-auth-card .primary-button,
 .admin-auth-card .ghost-panel-button {
-  min-height: 36px;
+  min-height: 34px;
+  font-size: 0.84rem;
 }
 
 .settlement-summary article {
@@ -1362,6 +1364,10 @@ select:focus {
   .summary-band {
     display: grid;
     align-items: end;
+  }
+
+  .summary-band .admin-auth-card {
+    width: 100%;
   }
 
   .kpi-grid {

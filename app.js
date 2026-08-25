@@ -270,12 +270,10 @@ function isAdminUser() {
   return clean(currentUser?.email).toLowerCase() === adminEmail.toLowerCase();
 }
 
-async function sendAdminLoginLink(email) {
-  const { error } = await db.auth.signInWithOtp({
+async function signInAdmin(email, password) {
+  const { error } = await db.auth.signInWithPassword({
     email,
-    options: {
-      emailRedirectTo: window.location.href.split("#")[0],
-    },
+    password,
   });
   if (error) throw error;
 }
@@ -747,11 +745,12 @@ function renderAdminAuth() {
     elements.adminAuthPanel.innerHTML = `
       <form class="admin-auth-card" data-admin-login-form>
         <div>
-          <strong>完成付款需管理者登入</strong>
-          <span>一般人可以查看明細，只有管理者可以把付款點掉。</span>
+          <strong>管理者登入</strong>
+          <span>登入後可完成付款與編輯紀錄</span>
         </div>
         <input name="email" type="email" value="${escapeHtml(adminEmail)}" aria-label="管理者 Email" required />
-        <button class="primary-button" type="submit">寄登入信</button>
+        <input name="password" type="password" aria-label="管理者密碼" placeholder="密碼" required />
+        <button class="primary-button" type="submit">登入</button>
       </form>
     `;
   }
@@ -760,12 +759,13 @@ function renderAdminAuth() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const emailValue = clean(form.get("email"));
-    if (!emailValue) return;
+    const password = String(form.get("password") || "");
+    if (!emailValue || !password) return;
     try {
-      await sendAdminLoginLink(emailValue);
-      showNotice("已寄出管理者登入信，請到信箱點開連結後回到網站。", "success");
+      await signInAdmin(emailValue, password);
+      showNotice("已登入管理者模式。", "success");
     } catch (error) {
-      alert(`登入信寄送失敗：${error.message}`);
+      alert(`登入失敗：${error.message}`);
     }
   });
 
