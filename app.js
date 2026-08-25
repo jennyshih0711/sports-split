@@ -954,11 +954,7 @@ function renderActiveSettlementBatch(batch, paidIds, extraTransfers) {
         </div>
         <button class="ghost-button compact" type="button" data-void-settlement-batch>重新計算</button>
       </div>
-    ` +
-    renderTransferCards(batch.transfers, paidIds) +
-    renderExtraSettlementTransfers(extraTransfers, extraAmount) +
-    `
-      <div class="batch-settlement-actions">
+      <div class="batch-settlement-actions top-settlement-actions">
         <div>
           <strong id="batchSelectionTitle">儲存完成狀態</strong>
           <span id="batchSelectionSummary">勾選已經完成轉帳的項目；場次會在全部完成後一次更新。</span>
@@ -968,7 +964,9 @@ function renderActiveSettlementBatch(batch, paidIds, extraTransfers) {
           <span id="batchActionLabel">儲存完成狀態</span>
         </button>
       </div>
-    `
+    ` +
+    renderTransferCards(batch.transfers, paidIds) +
+    renderExtraSettlementTransfers(extraTransfers, extraAmount)
   );
 }
 
