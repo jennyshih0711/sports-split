@@ -576,6 +576,22 @@ function normalizeTransfersForStorage(transfers) {
   }));
 }
 
+function batchDetailKeys(batch) {
+  const keys = new Set();
+  (batch?.transfers || []).forEach((transfer) => {
+    (transfer.fromDetails || []).forEach((detail) => {
+      const key = settlementDetailKey(detail.eventId, detail.personName);
+      if (key) keys.add(key);
+    });
+  });
+  return keys;
+}
+
+function settlementDetailKey(eventId, personName) {
+  if (!eventId || !personName) return "";
+  return `${eventId}::${personName}`;
+}
+
 async function updateEvent(eventId, changes) {
   const { error } = await db.from("events").update(changes).eq("id", eventId);
   if (error) throw error;
@@ -856,6 +872,7 @@ function hourOptions(selectedHour) {
 
 function renderSettlement() {
   const activeBatch = state.activeSettlementBatch;
+  const extraTransfers = activeBatch ? calculateSettlement(batchDetailKeys(activeBatch)) : [];
   const transfers = activeBatch ? activeBatch.transfers : calculateSettlement();
   const paidIds = new Set(activeBatch?.paidTransferIds || []);
   const openTransfers = activeBatch ? transfers.filter((transfer) => !paidIds.has(transfer.id)) : transfers;
@@ -880,7 +897,9 @@ function renderSettlement() {
     return;
   }
 
-  elements.settlementList.innerHTML = activeBatch ? renderActiveSettlementBatch(activeBatch, paidIds) : renderSettlementPreview(transfers);
+  elements.settlementList.innerHTML = activeBatch
+    ? renderActiveSettlementBatch(activeBatch, paidIds, extraTransfers)
+    : renderSettlementPreview(transfers);
 
   bindSettlementControls(transfers, activeBatch);
 }
@@ -903,8 +922,9 @@ function renderSettlementPreview(transfers) {
   );
 }
 
-function renderActiveSettlementBatch(batch, paidIds) {
+function renderActiveSettlementBatch(batch, paidIds, extraTransfers) {
   const remaining = batch.transfers.length - paidIds.size;
+  const extraAmount = extraTransfers.reduce((sum, transfer) => sum + transfer.amount, 0);
   return (
     `
       <div class="settlement-batch-banner">
@@ -916,6 +936,7 @@ function renderActiveSettlementBatch(batch, paidIds) {
       </div>
     ` +
     renderTransferCards(batch.transfers, paidIds) +
+    renderExtraSettlementTransfers(extraTransfers, extraAmount) +
     `
       <div class="batch-settlement-actions">
         <div>
@@ -929,6 +950,22 @@ function renderActiveSettlementBatch(batch, paidIds) {
       </div>
     `
   );
+}
+
+function renderExtraSettlementTransfers(transfers, totalAmount) {
+  if (!transfers.length) return "";
+  return `
+    <section class="extra-settlement-section">
+      <div class="extra-settlement-header">
+        <div>
+          <strong>批次外新增帳款</strong>
+          <span>這些是建立本批後新增或變動的未付款，會留到下一批處理。</span>
+        </div>
+        <span class="pill">${transfers.length} 筆 · ${money(totalAmount)}</span>
+      </div>
+      ${renderTransferCards(transfers)}
+    </section>
+  `;
 }
 
 function renderTransferCards(transfers, paidIds = null) {
@@ -1616,7 +1653,7 @@ function getSportType(sport) {
   return { className: "other-sport", icon: "•" };
 }
 
-function calculateSettlement() {
+function calculateSettlement(excludedDetailKeys = new Set()) {
   const balances = new Map();
   const payerEntries = new Map();
   const receiverEntries = new Map();
@@ -1625,6 +1662,7 @@ function calculateSettlement() {
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
       .forEach((person) => {
+        if (excludedDetailKeys.has(settlementDetailKey(event.id, person.name))) return;
         balances.set(person.name, roundMoney((balances.get(person.name) || 0) - share));
         balances.set(event.payer, roundMoney((balances.get(event.payer) || 0) + share));
         addDetailEntry(payerEntries, person.name, {

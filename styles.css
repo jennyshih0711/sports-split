@@ -721,6 +721,40 @@ button {
   border-color: #b9d8e8;
 }
 
+.extra-settlement-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.extra-settlement-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: #fff8ec;
+  border: 1px solid #edc879;
+  border-radius: 8px;
+}
+
+.extra-settlement-header strong,
+.extra-settlement-header span {
+  display: block;
+}
+
+.extra-settlement-header strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+}
+
+.extra-settlement-header div span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .payment-record-card {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1674,6 +1708,7 @@ select:focus {
   .detail-grid,
   .batch-settlement-actions,
   .settlement-batch-banner,
+  .extra-settlement-header,
   .payment-record-card,
   .settlement-summary,
   .participant-row,
