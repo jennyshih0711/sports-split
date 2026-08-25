@@ -1,6 +1,8 @@
 const supabaseUrl = "https://mpklydfhglclnebptjwv.supabase.co";
 const supabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb";
 const PENDING_PAYER = "待確認";
+const SETTLEMENT_BATCH_OPEN = "open";
+const SETTLEMENT_BATCH_COMPLETED = "completed";
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
@@ -69,7 +71,14 @@ const seedData = {
   ],
 };
 
-let state = { people: [], events: [], paymentHistory: [], paymentHistoryError: "" };
+let state = {
+  people: [],
+  events: [],
+  paymentHistory: [],
+  activeSettlementBatch: null,
+  paymentHistoryError: "",
+  settlementBatchError: "",
+};
 let db = null;
 let clockTimer = null;
 let calendarMonth = monthStart(new Date());
@@ -283,6 +292,7 @@ async function loadCloudData() {
     { data: peopleRows, error: peopleError },
     { data: eventRows, error: eventsError },
     { data: paymentRows, error: paymentsError },
+    { data: batchRows, error: batchError },
   ] = await Promise.all([
     db.from("people").select("name,email").order("name", { ascending: true }),
     db.from("events").select("id,date,time,sport,total,payer,participants,created_at").order("created_at", { ascending: false }),
@@ -291,6 +301,12 @@ async function loadCloudData() {
       .select("id,from_person,to_person,amount,details,created_at")
       .order("created_at", { ascending: false })
       .limit(50),
+    db
+      .from("settlement_batches")
+      .select("id,status,transfers,paid_transfer_ids,created_at,finalized_at")
+      .eq("status", SETTLEMENT_BATCH_OPEN)
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (peopleError) throw peopleError;
@@ -300,7 +316,9 @@ async function loadCloudData() {
     people: (peopleRows || []).map((row) => ({ name: row.name, email: row.email || "" })),
     events: (eventRows || []).map(fromEventRow),
     paymentHistory: paymentsError ? [] : (paymentRows || []).map(fromPaymentRow),
+    activeSettlementBatch: batchError ? null : (batchRows || []).map(fromSettlementBatchRow)[0] || null,
     paymentHistoryError: paymentsError ? paymentsError.message : "",
+    settlementBatchError: batchError ? batchError.message : "",
   };
   render();
 }
@@ -483,7 +501,60 @@ async function updateEventParticipants(eventId, participants) {
 }
 
 async function insertSettlementPayment(transfer) {
-  const { error } = await db.from("settlement_payments").insert({
+  const { error } = await db.from("settlement_payments").insert(paymentRowFromTransfer(transfer));
+  if (error) throw error;
+}
+
+async function insertSettlementPayments(transfers) {
+  const rows = transfers.map(paymentRowFromTransfer);
+  if (!rows.length) return;
+  const { error } = await db.from("settlement_payments").insert(rows);
+  if (error) throw error;
+}
+
+async function createSettlementBatch(transfers) {
+  const rows = normalizeTransfersForStorage(transfers);
+  const { error } = await db.from("settlement_batches").insert({
+    status: SETTLEMENT_BATCH_OPEN,
+    transfers: rows,
+    paid_transfer_ids: [],
+  });
+  if (error) throw error;
+}
+
+async function updateSettlementBatchPaidIds(batchId, paidIds) {
+  const { error } = await db.from("settlement_batches").update({ paid_transfer_ids: paidIds }).eq("id", batchId);
+  if (error) throw error;
+}
+
+async function completeSettlementBatch(batch) {
+  const transfers = normalizeTransfersForStorage(batch.transfers);
+  if (!transfers.length) throw new Error("這個付款批次沒有可結清的轉帳");
+
+  await insertSettlementPayments(transfers);
+  await markTransfersDetailsPaid(transfers);
+
+  const { error } = await db
+    .from("settlement_batches")
+    .update({
+      status: SETTLEMENT_BATCH_COMPLETED,
+      paid_transfer_ids: transfers.map((transfer) => transfer.id),
+      finalized_at: new Date().toISOString(),
+    })
+    .eq("id", batch.id);
+  if (error) throw error;
+}
+
+async function voidSettlementBatch(batchId) {
+  const { error } = await db
+    .from("settlement_batches")
+    .update({ status: "voided", finalized_at: new Date().toISOString() })
+    .eq("id", batchId);
+  if (error) throw error;
+}
+
+function paymentRowFromTransfer(transfer) {
+  return {
     from_person: transfer.from,
     to_person: transfer.to,
     amount: transfer.amount,
@@ -491,8 +562,18 @@ async function insertSettlementPayment(transfer) {
       fromDetails: transfer.fromDetails,
       toDetails: transfer.toDetails,
     },
-  });
-  if (error) throw error;
+  };
+}
+
+function normalizeTransfersForStorage(transfers) {
+  return transfers.map((transfer, index) => ({
+    id: transfer.id || `${transfer.from}->${transfer.to}-${index}`,
+    from: transfer.from,
+    to: transfer.to,
+    amount: Number(transfer.amount || 0),
+    fromDetails: Array.isArray(transfer.fromDetails) ? transfer.fromDetails : [],
+    toDetails: Array.isArray(transfer.toDetails) ? transfer.toDetails : [],
+  }));
 }
 
 async function updateEvent(eventId, changes) {
@@ -600,6 +681,8 @@ async function clearCloudData() {
   if (peopleDelete.error) throw peopleDelete.error;
   const paymentDelete = await db.from("settlement_payments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
   if (paymentDelete.error) throw paymentDelete.error;
+  const batchDelete = await db.from("settlement_batches").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (batchDelete.error) throw batchDelete.error;
 }
 
 async function seedCloudData() {
@@ -621,6 +704,7 @@ function subscribeToChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "people" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "settlement_payments" }, () => loadCloudData())
+    .on("postgres_changes", { event: "*", schema: "public", table: "settlement_batches" }, () => loadCloudData())
     .subscribe();
 }
 
@@ -647,6 +731,17 @@ function fromPaymentRow(row) {
     fromDetails: Array.isArray(details.fromDetails) ? details.fromDetails : [],
     toDetails: Array.isArray(details.toDetails) ? details.toDetails : [],
     createdAt: row.created_at,
+  };
+}
+
+function fromSettlementBatchRow(row) {
+  return {
+    id: row.id,
+    status: row.status,
+    transfers: normalizeTransfersForStorage(Array.isArray(row.transfers) ? row.transfers : []),
+    paidTransferIds: Array.isArray(row.paid_transfer_ids) ? row.paid_transfer_ids : [],
+    createdAt: row.created_at,
+    finalizedAt: row.finalized_at,
   };
 }
 
@@ -760,24 +855,95 @@ function hourOptions(selectedHour) {
 }
 
 function renderSettlement() {
-  const transfers = calculateSettlement();
+  const activeBatch = state.activeSettlementBatch;
+  const transfers = activeBatch ? activeBatch.transfers : calculateSettlement();
+  const paidIds = new Set(activeBatch?.paidTransferIds || []);
+  const openTransfers = activeBatch ? transfers.filter((transfer) => !paidIds.has(transfer.id)) : transfers;
   const totalAmount = transfers.reduce((sum, transfer) => sum + transfer.amount, 0);
+  const openAmount = openTransfers.reduce((sum, transfer) => sum + transfer.amount, 0);
 
   if (elements.totalEvents) elements.totalEvents.textContent = state.events.length;
   if (elements.totalPeople) elements.totalPeople.textContent = state.people.length;
-  elements.openTransfers.textContent = transfers.length;
-  elements.openAmount.textContent = money(totalAmount);
-  elements.settlementCount.textContent = `${transfers.length} 筆`;
+  elements.openTransfers.textContent = activeBatch ? openTransfers.length : transfers.length;
+  elements.openAmount.textContent = money(activeBatch ? openAmount : totalAmount);
+  elements.settlementCount.textContent = activeBatch ? `${paidIds.size}/${transfers.length} 筆` : `${transfers.length} 筆`;
+
+  if (state.settlementBatchError) {
+    elements.settlementList.innerHTML = `
+      <div class="empty-state">付款批次資料表尚未建立，請先執行 database/create-settlement-batches.sql</div>
+    `;
+    return;
+  }
 
   if (!transfers.length) {
     elements.settlementList.innerHTML = `<div class="empty-state">目前沒有待付款項</div>`;
     return;
   }
 
-  elements.settlementList.innerHTML = transfers
+  elements.settlementList.innerHTML = activeBatch ? renderActiveSettlementBatch(activeBatch, paidIds) : renderSettlementPreview(transfers);
+
+  bindSettlementControls(transfers, activeBatch);
+}
+
+function renderSettlementPreview(transfers) {
+  return (
+    renderTransferCards(transfers) +
+    `
+      <div class="batch-settlement-actions">
+        <div>
+          <strong>建立付款批次</strong>
+          <span>先固定目前 ${transfers.length} 筆轉帳，之後可分次勾選完成；全部完成後才會回寫場次。</span>
+        </div>
+        <button class="mark-paid-button batch-settle-button" type="button" data-create-settlement-batch>
+          <span class="check-box" aria-hidden="true"></span>
+          <span>建立付款批次</span>
+        </button>
+      </div>
+    `
+  );
+}
+
+function renderActiveSettlementBatch(batch, paidIds) {
+  const remaining = batch.transfers.length - paidIds.size;
+  return (
+    `
+      <div class="settlement-batch-banner">
+        <div>
+          <strong>付款批次進行中</strong>
+          <span>${formatPaymentDate(batch.createdAt)} 建立，剩下 ${remaining} 筆尚未完成。</span>
+        </div>
+        <button class="ghost-button compact" type="button" data-void-settlement-batch>重新計算</button>
+      </div>
+    ` +
+    renderTransferCards(batch.transfers, paidIds) +
+    `
+      <div class="batch-settlement-actions">
+        <div>
+          <strong id="batchSelectionTitle">儲存完成狀態</strong>
+          <span id="batchSelectionSummary">勾選已經完成轉帳的項目；場次會在全部完成後一次更新。</span>
+        </div>
+        <button class="mark-paid-button batch-settle-button" type="button" data-save-batch-paid>
+          <span class="check-box" aria-hidden="true"></span>
+          <span id="batchActionLabel">儲存完成狀態</span>
+        </button>
+      </div>
+    `
+  );
+}
+
+function renderTransferCards(transfers, paidIds = null) {
+  return transfers
     .map(
       (transfer) => `
-        <article class="transfer-card">
+        <article class="transfer-card ${paidIds ? "has-select" : ""} ${paidIds?.has(transfer.id) ? "is-settled" : ""}">
+          ${
+            paidIds
+              ? `<label class="transfer-select" title="標記這筆轉帳已完成">
+                  <input type="checkbox" data-batch-transfer="${escapeHtml(transfer.id)}" ${paidIds.has(transfer.id) ? "checked" : ""}>
+                  <span class="check-box" aria-hidden="true"></span>
+                </label>`
+              : ""
+          }
           <div>
             <div class="transfer-route">
               <span>${escapeHtml(transfer.from)}</span>
@@ -787,10 +953,6 @@ function renderSettlement() {
             <div class="event-meta">全體抵銷後的最簡化轉帳</div>
           </div>
           <div class="amount">${money(transfer.amount)}</div>
-          <button class="mark-paid-button" type="button" data-mark-paid="${transfer.id}">
-            <span class="check-box" aria-hidden="true"></span>
-            <span>我已經完成付款</span>
-          </button>
           <details class="transfer-details">
             <summary>查看合併明細</summary>
             <p>此筆為全體淨額合併結果，可能不是單一場次的一對一付款。</p>
@@ -809,24 +971,90 @@ function renderSettlement() {
       `,
     )
     .join("");
+}
 
-  elements.settlementList.querySelectorAll("[data-mark-paid]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (!confirm("確定已付款了嗎？")) return;
-      const transfer = transfers.find((item) => item.id === button.dataset.markPaid);
-      if (!transfer) return;
+function bindSettlementControls(transfers, activeBatch) {
+  elements.settlementList.querySelector("[data-create-settlement-batch]")?.addEventListener("click", async (event) => {
+    if (!confirm(`要把目前 ${transfers.length} 筆轉帳建立成付款批次嗎？建立後會固定這份清單，直到整批完成或重新計算。`)) return;
 
-      try {
-        button.disabled = true;
-        await insertSettlementPayment(transfer);
-        await markTransferDetailsPaid(transfer);
-        await loadCloudData();
-      } catch (error) {
-        alert(`更新付款狀態失敗：${error.message}。如果尚未建立付款紀錄資料表，請先執行 database/create-settlement-payments.sql。`);
-        button.disabled = false;
-      }
-    });
+    try {
+      event.currentTarget.disabled = true;
+      await createSettlementBatch(transfers);
+      await loadCloudData();
+      showNotice("付款批次已建立，可以開始勾選已完成的轉帳。", "success");
+    } catch (error) {
+      alert(`建立付款批次失敗：${error.message}。如果尚未建立批次資料表，請先執行 database/create-settlement-batches.sql。`);
+      event.currentTarget.disabled = false;
+    }
   });
+
+  if (!activeBatch) return;
+
+  const checkboxes = [...elements.settlementList.querySelectorAll("[data-batch-transfer]")];
+  const saveButton = elements.settlementList.querySelector("[data-save-batch-paid]");
+  const voidButton = elements.settlementList.querySelector("[data-void-settlement-batch]");
+
+  const refreshBatchActionText = () => {
+    const selectedIds = getSelectedBatchTransferIds();
+    const selectedAmount = transfers
+      .filter((transfer) => selectedIds.includes(transfer.id))
+      .reduce((sum, transfer) => sum + transfer.amount, 0);
+    const title = elements.settlementList.querySelector("#batchSelectionTitle");
+    const summary = elements.settlementList.querySelector("#batchSelectionSummary");
+    const label = elements.settlementList.querySelector("#batchActionLabel");
+    const isAllDone = selectedIds.length === transfers.length;
+
+    if (title) title.textContent = isAllDone ? "全部完成並回寫場次" : "儲存完成狀態";
+    if (summary) {
+      summary.textContent = `已勾選 ${selectedIds.length}/${transfers.length} 筆，合計 ${money(selectedAmount)}。${
+        isAllDone ? "按下後會寫入付款紀錄並一次更新場次。" : "場次會等全部完成後才更新。"
+      }`;
+    }
+    if (label) label.textContent = isAllDone ? "全部完成並回寫" : "儲存完成狀態";
+  };
+
+  checkboxes.forEach((checkbox) => checkbox.addEventListener("change", refreshBatchActionText));
+  refreshBatchActionText();
+
+  saveButton?.addEventListener("click", async (event) => {
+    const selectedIds = getSelectedBatchTransferIds();
+    const isAllDone = selectedIds.length === transfers.length;
+    if (isAllDone && !confirm(`確定這批 ${transfers.length} 筆轉帳都已完成了嗎？場次付款狀態會一次更新。`)) return;
+
+    try {
+      event.currentTarget.disabled = true;
+      if (isAllDone) {
+        await completeSettlementBatch({ ...activeBatch, paidTransferIds: selectedIds });
+        await loadCloudData();
+        showNotice("本批轉帳已全部結清，付款紀錄已保存，場次狀態已更新。", "success");
+        return;
+      }
+
+      await updateSettlementBatchPaidIds(activeBatch.id, selectedIds);
+      await loadCloudData();
+      showNotice("已儲存本批完成狀態；場次會在全部完成後一次更新。", "success");
+    } catch (error) {
+      alert(`儲存付款批次失敗：${error.message}`);
+      event.currentTarget.disabled = false;
+    }
+  });
+
+  voidButton?.addEventListener("click", async (event) => {
+    if (!confirm("確定要放棄目前付款批次並重新計算嗎？已勾選的完成狀態會被清除，場次紀錄不會變更。")) return;
+    try {
+      event.currentTarget.disabled = true;
+      await voidSettlementBatch(activeBatch.id);
+      await loadCloudData();
+      showNotice("已放棄目前付款批次，並依最新場次重新計算。", "success");
+    } catch (error) {
+      alert(`重新計算失敗：${error.message}`);
+      event.currentTarget.disabled = false;
+    }
+  });
+}
+
+function getSelectedBatchTransferIds() {
+  return [...elements.settlementList.querySelectorAll("[data-batch-transfer]:checked")].map((checkbox) => checkbox.dataset.batchTransfer);
 }
 
 function renderPaymentHistory() {
@@ -893,15 +1121,21 @@ function renderDetailList(items) {
 }
 
 async function markTransferDetailsPaid(transfer) {
+  await markTransfersDetailsPaid([transfer]);
+}
+
+async function markTransfersDetailsPaid(transfers) {
   const grouped = new Map();
-  transfer.fromDetails.forEach((detail) => {
-    if (!detail.eventId || !detail.personName) return;
-    if (!grouped.has(detail.eventId)) grouped.set(detail.eventId, new Set());
-    grouped.get(detail.eventId).add(detail.personName);
+  transfers.forEach((transfer) => {
+    transfer.fromDetails.forEach((detail) => {
+      if (!detail.eventId || !detail.personName) return;
+      if (!grouped.has(detail.eventId)) grouped.set(detail.eventId, new Set());
+      grouped.get(detail.eventId).add(detail.personName);
+    });
   });
 
   if (!grouped.size) {
-    throw new Error("這筆轉帳沒有可回寫的場次明細");
+    throw new Error("這批轉帳沒有可回寫的場次明細");
   }
 
   const updates = [];

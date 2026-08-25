@@ -636,13 +636,89 @@ button {
 
 .transfer-card {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 14px;
   background: #f8fbf8;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.transfer-card.has-select {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.transfer-card.is-settled {
+  background: #f1f8f4;
+  border-color: #a9d7ba;
+}
+
+.transfer-select {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.transfer-select input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.transfer-select input:checked + .check-box {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.transfer-select input:checked + .check-box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.settlement-batch-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: #eef6fb;
+  border: 1px solid #b9d8e8;
+  border-radius: 8px;
+}
+
+.settlement-batch-banner strong,
+.settlement-batch-banner span {
+  display: block;
+}
+
+.settlement-batch-banner strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+}
+
+.settlement-batch-banner span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.ghost-button.compact {
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--blue);
+  background: white;
+  border-color: #b9d8e8;
 }
 
 .payment-record-card {
@@ -700,6 +776,40 @@ button {
 .mark-paid-button:disabled {
   opacity: 0.58;
   cursor: wait;
+}
+
+.batch-settlement-actions {
+  position: sticky;
+  bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  background: #fffdf6;
+  border: 1px solid #edc879;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(31, 42, 40, 0.12);
+}
+
+.batch-settlement-actions strong,
+.batch-settlement-actions span {
+  display: block;
+}
+
+.batch-settlement-actions strong {
+  font-size: 0.96rem;
+}
+
+.batch-settlement-actions span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.batch-settle-button {
+  min-height: 40px;
 }
 
 .transfer-details {
@@ -1558,6 +1668,8 @@ select:focus {
   .event-fields-row,
   .event-edit-fields,
   .detail-grid,
+  .batch-settlement-actions,
+  .settlement-batch-banner,
   .payment-record-card,
   .settlement-summary,
   .participant-row,
