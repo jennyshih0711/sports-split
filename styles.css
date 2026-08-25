@@ -194,6 +194,52 @@ button {
   font-weight: 700;
 }
 
+.admin-auth-panel {
+  margin: 0 0 12px;
+}
+
+.admin-auth-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: #f8fbf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.admin-auth-card.is-admin {
+  grid-template-columns: minmax(0, 1fr) auto;
+  background: #edf8f1;
+  border-color: #a9d9bc;
+}
+
+.admin-auth-card strong,
+.admin-auth-card span {
+  display: block;
+}
+
+.admin-auth-card strong {
+  font-size: 0.9rem;
+}
+
+.admin-auth-card span,
+.admin-only-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-auth-card input {
+  min-height: 36px;
+}
+
+.admin-auth-card .primary-button,
+.admin-auth-card .ghost-panel-button {
+  min-height: 36px;
+}
+
 .settlement-summary article {
   padding: 14px;
   background: #f8fbf8;
@@ -699,6 +745,17 @@ button {
 .mark-paid-button:disabled {
   opacity: 0.58;
   cursor: wait;
+}
+
+.admin-only-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  background: #edf0ec;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .transfer-details {
@@ -1553,6 +1610,8 @@ select:focus {
   }
 
   .kpi-grid,
+  .admin-auth-card,
+  .admin-auth-card.is-admin,
   .form-grid,
   .event-fields-row,
   .event-edit-fields,
