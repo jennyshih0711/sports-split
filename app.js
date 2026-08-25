@@ -724,24 +724,21 @@ function renderAdminAuth() {
   if (isAdminUser()) {
     elements.adminAuthPanel.innerHTML = `
       <div class="admin-auth-card is-admin">
-        <div>
-          <strong>管理者模式</strong>
-          <span>${escapeHtml(username)}</span>
-        </div>
+        <span>管理者：${escapeHtml(username)}</span>
         <button class="ghost-panel-button" type="button" data-admin-sign-out>登出</button>
       </div>
     `;
   } else {
     elements.adminAuthPanel.innerHTML = `
-      <form class="admin-auth-card" data-admin-login-form>
-        <div>
+      <details class="admin-login-menu">
+        <summary>登入</summary>
+        <form class="admin-auth-card" data-admin-login-form>
           <strong>管理者登入</strong>
-          <span>登入後可完成付款與編輯紀錄</span>
-        </div>
-        <input name="username" type="text" value="${escapeHtml(defaultAdminUsername)}" aria-label="管理者帳號" required />
-        <input name="password" type="password" aria-label="管理者密碼" placeholder="密碼" required />
-        <button class="primary-button" type="submit">登入</button>
-      </form>
+          <input name="username" type="text" value="${escapeHtml(defaultAdminUsername)}" aria-label="管理者帳號" required />
+          <input name="password" type="password" aria-label="管理者密碼" placeholder="密碼" required />
+          <button class="primary-button" type="submit">登入</button>
+        </form>
+      </details>
     `;
   }
 

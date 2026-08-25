@@ -49,6 +49,7 @@ button {
 }
 
 .summary-band {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -61,6 +62,13 @@ button {
     url("assets/sports-hero.png") center center / cover;
   border-radius: 8px;
   box-shadow: var(--shadow);
+}
+
+.summary-band .admin-auth-panel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
 }
 
 .summary-band h1 {
@@ -194,12 +202,42 @@ button {
   font-weight: 700;
 }
 
+.admin-login-menu {
+  position: relative;
+}
+
+.admin-login-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 13px;
+  color: var(--green-dark);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(31, 42, 40, 0.12);
+  font-size: 0.84rem;
+  font-weight: 900;
+  list-style: none;
+  cursor: pointer;
+}
+
+.admin-login-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-login-menu[open] summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .admin-auth-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  width: min(300px, 100%);
+  width: 240px;
   padding: 10px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.64);
@@ -209,9 +247,18 @@ button {
 }
 
 .admin-auth-card.is-admin {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto auto;
+  width: auto;
   background: #edf8f1;
   border-color: #a9d9bc;
+}
+
+.admin-login-menu .admin-auth-card {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  border-top-right-radius: 0;
+  z-index: 3;
 }
 
 .admin-auth-card strong,
@@ -1367,7 +1414,12 @@ select:focus {
   }
 
   .summary-band .admin-auth-card {
-    width: 100%;
+    width: 220px;
+  }
+
+  .summary-band .admin-auth-panel {
+    top: 10px;
+    right: 10px;
   }
 
   .kpi-grid {
@@ -1616,8 +1668,6 @@ select:focus {
   }
 
   .kpi-grid,
-  .admin-auth-card,
-  .admin-auth-card.is-admin,
   .form-grid,
   .event-fields-row,
   .event-edit-fields,
