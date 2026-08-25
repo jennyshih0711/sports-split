@@ -4,7 +4,7 @@ const PENDING_PAYER = "待確認";
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
-const adminEmail = "jennyshih0711@gmail.com";
+const defaultAdminUsername = "jennyshih0711";
 
 const seedData = {
   people: ["elmo", "乃哥", "卡森", "施", "汪", "生哥", "秉樺", "芮瑜", "許", "高"],
@@ -256,31 +256,31 @@ async function initApp() {
 }
 
 async function initAuth() {
-  const { data } = await db.auth.getSession();
-  currentUser = data.session?.user || null;
-  db.auth.onAuthStateChange((_event, session) => {
-    currentUser = session?.user || null;
-    renderAdminAuth();
-    renderSettlement();
-  });
+  const savedUsername = localStorage.getItem("sportsSplitAdminUser");
+  currentUser = savedUsername ? { username: savedUsername } : null;
   renderAdminAuth();
 }
 
 function isAdminUser() {
-  return clean(currentUser?.email).toLowerCase() === adminEmail.toLowerCase();
+  return Boolean(clean(currentUser?.username));
 }
 
-async function signInAdmin(email, password) {
-  const { error } = await db.auth.signInWithPassword({
-    email,
-    password,
+async function signInAdmin(username, password) {
+  const { data, error } = await db.rpc("verify_simple_admin_login", {
+    input_username: clean(username),
+    input_password: password,
   });
   if (error) throw error;
+  if (!data) {
+    throw new Error("帳號或密碼錯誤");
+  }
+  localStorage.setItem("sportsSplitAdminUser", clean(username));
+  currentUser = { username: clean(username) };
 }
 
 async function signOutAdmin() {
-  const { error } = await db.auth.signOut();
-  if (error) throw error;
+  localStorage.removeItem("sportsSplitAdminUser");
+  currentUser = null;
 }
 
 function startClockRefresh() {
@@ -720,23 +720,13 @@ function render() {
 
 function renderAdminAuth() {
   if (!elements.adminAuthPanel) return;
-  const email = clean(currentUser?.email);
+  const username = clean(currentUser?.username);
   if (isAdminUser()) {
     elements.adminAuthPanel.innerHTML = `
       <div class="admin-auth-card is-admin">
         <div>
           <strong>管理者模式</strong>
-          <span>${escapeHtml(email)}</span>
-        </div>
-        <button class="ghost-panel-button" type="button" data-admin-sign-out>登出</button>
-      </div>
-    `;
-  } else if (email) {
-    elements.adminAuthPanel.innerHTML = `
-      <div class="admin-auth-card">
-        <div>
-          <strong>目前登入帳號沒有付款權限</strong>
-          <span>${escapeHtml(email)}</span>
+          <span>${escapeHtml(username)}</span>
         </div>
         <button class="ghost-panel-button" type="button" data-admin-sign-out>登出</button>
       </div>
@@ -748,7 +738,7 @@ function renderAdminAuth() {
           <strong>管理者登入</strong>
           <span>登入後可完成付款與編輯紀錄</span>
         </div>
-        <input name="email" type="email" value="${escapeHtml(adminEmail)}" aria-label="管理者 Email" required />
+        <input name="username" type="text" value="${escapeHtml(defaultAdminUsername)}" aria-label="管理者帳號" required />
         <input name="password" type="password" aria-label="管理者密碼" placeholder="密碼" required />
         <button class="primary-button" type="submit">登入</button>
       </form>
@@ -758,12 +748,15 @@ function renderAdminAuth() {
   elements.adminAuthPanel.querySelector("[data-admin-login-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const emailValue = clean(form.get("email"));
+    const usernameValue = clean(form.get("username"));
     const password = String(form.get("password") || "");
-    if (!emailValue || !password) return;
+    if (!usernameValue || !password) return;
     try {
-      await signInAdmin(emailValue, password);
+      await signInAdmin(usernameValue, password);
       showNotice("已登入管理者模式。", "success");
+      renderAdminAuth();
+      renderSettlement();
+      renderHistory();
     } catch (error) {
       alert(`登入失敗：${error.message}`);
     }
@@ -772,6 +765,9 @@ function renderAdminAuth() {
   elements.adminAuthPanel.querySelector("[data-admin-sign-out]")?.addEventListener("click", async () => {
     try {
       await signOutAdmin();
+      renderAdminAuth();
+      renderSettlement();
+      renderHistory();
     } catch (error) {
       alert(`登出失敗：${error.message}`);
     }
