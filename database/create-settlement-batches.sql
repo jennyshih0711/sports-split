@@ -5,9 +5,13 @@ create table if not exists public.settlement_batches (
   status text not null default 'open' check (status in ('open', 'completed', 'voided')),
   transfers jsonb not null default '[]'::jsonb,
   paid_transfer_ids jsonb not null default '[]'::jsonb,
+  source_detail_keys jsonb not null default '[]'::jsonb,
   finalized_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.settlement_batches
+add column if not exists source_detail_keys jsonb not null default '[]'::jsonb;
 
 create index if not exists settlement_batches_status_created_at_idx
 on public.settlement_batches (status, created_at desc);

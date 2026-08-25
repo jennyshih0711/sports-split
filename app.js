@@ -303,7 +303,7 @@ async function loadCloudData() {
       .limit(50),
     db
       .from("settlement_batches")
-      .select("id,status,transfers,paid_transfer_ids,created_at,finalized_at")
+      .select("*")
       .eq("status", SETTLEMENT_BATCH_OPEN)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -518,6 +518,7 @@ async function createSettlementBatch(transfers) {
     status: SETTLEMENT_BATCH_OPEN,
     transfers: rows,
     paid_transfer_ids: [],
+    source_detail_keys: [...collectSettlementDetailKeys()],
   });
   if (error) throw error;
 }
@@ -577,9 +578,13 @@ function normalizeTransfersForStorage(transfers) {
 }
 
 function batchDetailKeys(batch) {
+  if (Array.isArray(batch?.sourceDetailKeys) && batch.sourceDetailKeys.length) {
+    return new Set(batch.sourceDetailKeys);
+  }
+
   const keys = new Set();
   (batch?.transfers || []).forEach((transfer) => {
-    (transfer.fromDetails || []).forEach((detail) => {
+    [...(transfer.fromDetails || []), ...(transfer.toDetails || [])].forEach((detail) => {
       const key = settlementDetailKey(detail.eventId, detail.personName);
       if (key) keys.add(key);
     });
@@ -590,6 +595,19 @@ function batchDetailKeys(batch) {
 function settlementDetailKey(eventId, personName) {
   if (!eventId || !personName) return "";
   return `${eventId}::${personName}`;
+}
+
+function collectSettlementDetailKeys(excludedDetailKeys = new Set()) {
+  const keys = new Set();
+  state.events.filter((event) => isCompletedEvent(event) && !isPendingPayer(event.payer)).forEach((event) => {
+    event.participants
+      .filter((person) => person.status === "unpaid" && person.name !== event.payer)
+      .forEach((person) => {
+        const key = settlementDetailKey(event.id, person.name);
+        if (key && !excludedDetailKeys.has(key)) keys.add(key);
+      });
+  });
+  return keys;
 }
 
 async function updateEvent(eventId, changes) {
@@ -756,6 +774,7 @@ function fromSettlementBatchRow(row) {
     status: row.status,
     transfers: normalizeTransfersForStorage(Array.isArray(row.transfers) ? row.transfers : []),
     paidTransferIds: Array.isArray(row.paid_transfer_ids) ? row.paid_transfer_ids : [],
+    sourceDetailKeys: Array.isArray(row.source_detail_keys) ? row.source_detail_keys : [],
     createdAt: row.created_at,
     finalizedAt: row.finalized_at,
   };
@@ -872,7 +891,8 @@ function hourOptions(selectedHour) {
 
 function renderSettlement() {
   const activeBatch = state.activeSettlementBatch;
-  const extraTransfers = activeBatch ? calculateSettlement(batchDetailKeys(activeBatch)) : [];
+  const canShowExtraTransfers = Boolean(activeBatch?.sourceDetailKeys?.length);
+  const extraTransfers = canShowExtraTransfers ? calculateSettlement(batchDetailKeys(activeBatch)) : [];
   const transfers = activeBatch ? activeBatch.transfers : calculateSettlement();
   const paidIds = new Set(activeBatch?.paidTransferIds || []);
   const openTransfers = activeBatch ? transfers.filter((transfer) => !paidIds.has(transfer.id)) : transfers;
