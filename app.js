@@ -533,7 +533,11 @@ async function completeSettlementBatch(batch) {
   if (!transfers.length) throw new Error("這個付款批次沒有可結清的轉帳");
 
   await insertSettlementPayments(transfers);
-  await markTransfersDetailsPaid(transfers);
+  if (Array.isArray(batch.sourceDetailKeys) && batch.sourceDetailKeys.length) {
+    await markSettlementDetailKeysPaid(batch.sourceDetailKeys);
+  } else {
+    await markTransfersDetailsPaid(transfers);
+  }
 
   const { error } = await db
     .from("settlement_batches")
@@ -1184,13 +1188,32 @@ async function markTransfersDetailsPaid(transfers) {
   transfers.forEach((transfer) => {
     transfer.fromDetails.forEach((detail) => {
       if (!detail.eventId || !detail.personName) return;
-      if (!grouped.has(detail.eventId)) grouped.set(detail.eventId, new Set());
-      grouped.get(detail.eventId).add(detail.personName);
+      addGroupedSettlementDetail(grouped, detail.eventId, detail.personName);
     });
   });
 
+  await updateGroupedSettlementDetails(grouped, "這批轉帳沒有可回寫的場次明細");
+}
+
+async function markSettlementDetailKeysPaid(detailKeys) {
+  const grouped = new Map();
+  detailKeys.forEach((key) => {
+    const [eventId, personName] = String(key).split("::");
+    addGroupedSettlementDetail(grouped, eventId, personName);
+  });
+
+  await updateGroupedSettlementDetails(grouped, "這個付款批次沒有可回寫的場次明細");
+}
+
+function addGroupedSettlementDetail(grouped, eventId, personName) {
+  if (!eventId || !personName) return;
+  if (!grouped.has(eventId)) grouped.set(eventId, new Set());
+  grouped.get(eventId).add(personName);
+}
+
+async function updateGroupedSettlementDetails(grouped, emptyMessage) {
   if (!grouped.size) {
-    throw new Error("這批轉帳沒有可回寫的場次明細");
+    throw new Error(emptyMessage);
   }
 
   const updates = [];
