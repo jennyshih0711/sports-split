@@ -757,13 +757,66 @@ button {
 
 .payment-record-card {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 10px 12px;
   background: #fbfcfb;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.payment-record-main {
+  min-width: 0;
+}
+
+.payment-record-card .transfer-route {
+  font-size: 0.94rem;
+}
+
+.payment-record-card .event-meta {
+  margin-top: 2px;
+  font-size: 0.78rem;
+}
+
+.payment-record-card .amount {
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.payment-record-card .transfer-details {
+  padding-top: 0;
+}
+
+.payment-record-card .transfer-details summary {
+  font-size: 0.8rem;
+}
+
+.payment-history-pagination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f7faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.payment-history-pagination span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.payment-history-pagination div {
+  display: flex;
+  gap: 8px;
+}
+
+.payment-history-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .mark-paid-button {
@@ -1710,6 +1763,7 @@ select:focus {
   .settlement-batch-banner,
   .extra-settlement-header,
   .payment-record-card,
+  .payment-history-pagination,
   .settlement-summary,
   .participant-row,
   .person-chip,

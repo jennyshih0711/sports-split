@@ -3,6 +3,7 @@ const supabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb";
 const PENDING_PAYER = "待確認";
 const SETTLEMENT_BATCH_OPEN = "open";
 const SETTLEMENT_BATCH_COMPLETED = "completed";
+const PAYMENT_HISTORY_PAGE_SIZE = 20;
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
@@ -83,6 +84,7 @@ let db = null;
 let clockTimer = null;
 let calendarMonth = monthStart(new Date());
 let selectedCalendarDate = dateKey(new Date());
+let paymentHistoryPage = 1;
 
 const elements = {
   totalEvents: document.querySelector("#totalEvents"),
@@ -300,7 +302,7 @@ async function loadCloudData() {
       .from("settlement_payments")
       .select("id,from_person,to_person,amount,details,created_at")
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(500),
     db
       .from("settlement_batches")
       .select("*")
@@ -1129,11 +1131,17 @@ function renderPaymentHistory() {
     return;
   }
 
-  elements.paymentHistoryList.innerHTML = state.paymentHistory
+  const totalPages = Math.max(1, Math.ceil(state.paymentHistory.length / PAYMENT_HISTORY_PAGE_SIZE));
+  paymentHistoryPage = Math.min(Math.max(1, paymentHistoryPage), totalPages);
+  const startIndex = (paymentHistoryPage - 1) * PAYMENT_HISTORY_PAGE_SIZE;
+  const pagePayments = state.paymentHistory.slice(startIndex, startIndex + PAYMENT_HISTORY_PAGE_SIZE);
+
+  elements.paymentHistoryList.innerHTML =
+    pagePayments
     .map(
       (payment) => `
         <article class="payment-record-card">
-          <div>
+          <div class="payment-record-main">
             <div class="transfer-route">
               <span>${escapeHtml(payment.from)}</span>
               <span class="arrow">→</span>
@@ -1158,7 +1166,35 @@ function renderPaymentHistory() {
         </article>
       `,
     )
-    .join("");
+      .join("") +
+    renderPaymentHistoryPagination(totalPages);
+
+  bindPaymentHistoryPagination(totalPages);
+}
+
+function renderPaymentHistoryPagination(totalPages) {
+  if (totalPages <= 1) return "";
+  const start = (paymentHistoryPage - 1) * PAYMENT_HISTORY_PAGE_SIZE + 1;
+  const end = Math.min(paymentHistoryPage * PAYMENT_HISTORY_PAGE_SIZE, state.paymentHistory.length);
+  return `
+    <nav class="payment-history-pagination" aria-label="付款紀錄分頁">
+      <span>第 ${paymentHistoryPage} / ${totalPages} 頁，顯示 ${start}-${end} 筆，共 ${state.paymentHistory.length} 筆</span>
+      <div>
+        <button class="ghost-button compact" type="button" data-payment-page="prev" ${paymentHistoryPage <= 1 ? "disabled" : ""}>上一頁</button>
+        <button class="ghost-button compact" type="button" data-payment-page="next" ${paymentHistoryPage >= totalPages ? "disabled" : ""}>下一頁</button>
+      </div>
+    </nav>
+  `;
+}
+
+function bindPaymentHistoryPagination(totalPages) {
+  elements.paymentHistoryList.querySelectorAll("[data-payment-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      paymentHistoryPage += button.dataset.paymentPage === "next" ? 1 : -1;
+      paymentHistoryPage = Math.min(Math.max(1, paymentHistoryPage), totalPages);
+      renderPaymentHistory();
+    });
+  });
 }
 
 function renderDetailList(items) {
