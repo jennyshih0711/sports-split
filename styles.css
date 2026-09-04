@@ -696,6 +696,13 @@ button {
   border-radius: 8px;
 }
 
+.settlement-batch-group {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #cfe0d6;
+}
+
 .settlement-batch-banner strong,
 .settlement-batch-banner span {
   display: block;
@@ -719,6 +726,48 @@ button {
   color: var(--blue);
   background: white;
   border-color: #b9d8e8;
+}
+
+.batch-source-events {
+  padding: 0 12px;
+}
+
+.batch-source-events summary {
+  width: fit-content;
+  color: var(--blue);
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.batch-source-event-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.batch-source-event {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.batch-source-event strong,
+.batch-source-event span {
+  display: block;
+}
+
+.batch-source-event strong {
+  font-size: 0.86rem;
+}
+
+.batch-source-event span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .extra-settlement-section {
@@ -752,6 +801,94 @@ button {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.settlement-event-picker {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f7faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.settlement-event-picker-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.settlement-event-picker-header strong,
+.settlement-event-picker-header span {
+  display: block;
+}
+
+.settlement-event-picker-header span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.settlement-event-picker-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settlement-event-options {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.settlement-event-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.settlement-event-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settlement-event-option input:checked + .check-box {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.settlement-event-option input:checked + .check-box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.settlement-event-option strong,
+.settlement-event-option small {
+  display: block;
+}
+
+.settlement-event-option small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
@@ -1762,6 +1899,7 @@ select:focus {
   .batch-settlement-actions,
   .settlement-batch-banner,
   .extra-settlement-header,
+  .settlement-event-picker-header,
   .payment-record-card,
   .payment-history-pagination,
   .settlement-summary,
