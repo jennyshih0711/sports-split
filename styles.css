@@ -655,11 +655,19 @@ button {
 }
 
 .transfer-select {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 72px;
+  min-height: 24px;
   cursor: pointer;
+}
+
+.transfer-select-text {
+  color: var(--green-dark);
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .transfer-select input {

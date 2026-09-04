@@ -1018,6 +1018,10 @@ function renderSettlementEventOption(event) {
 function renderActiveSettlementBatch(batch, batchIndex = 0) {
   const paidIds = new Set(batch.paidTransferIds || []);
   const remaining = batch.transfers.length - paidIds.size;
+  const paidAmount = batch.transfers
+    .filter((transfer) => paidIds.has(transfer.id))
+    .reduce((sum, transfer) => sum + transfer.amount, 0);
+  const isAllDone = batch.transfers.length > 0 && paidIds.size === batch.transfers.length;
   const sourceEvents = getBatchSourceEvents(batch);
   return (
     `
@@ -1031,11 +1035,17 @@ function renderActiveSettlementBatch(batch, batchIndex = 0) {
         <div class="batch-settlement-actions compact-settlement-actions">
           <div>
             <strong data-batch-selection-title="${escapeHtml(batch.id)}">付款狀態</strong>
-            <span data-batch-selection-summary="${escapeHtml(batch.id)}">已勾選 0/${batch.transfers.length} 筆，合計 $0。</span>
+            <span data-batch-selection-summary="${escapeHtml(batch.id)}">已付款 ${paidIds.size}/${batch.transfers.length} 筆，合計 ${money(paidAmount)}。${
+              isAllDone ? "可完成批次並更新場次。" : ""
+            }</span>
           </div>
-          <button class="settlement-action-button settlement-action-primary" type="button" data-save-batch-paid="${escapeHtml(batch.id)}">
-            <span data-batch-action-label="${escapeHtml(batch.id)}">儲存付款狀態</span>
-          </button>
+          ${
+            isAllDone
+              ? `<button class="settlement-action-button settlement-action-primary" type="button" data-complete-settlement-batch="${escapeHtml(batch.id)}">
+                  <span>完成批次並更新場次</span>
+                </button>`
+              : ""
+          }
         </div>
         <button class="settlement-action-button settlement-action-secondary settlement-batch-reset" type="button" data-void-settlement-batch="${escapeHtml(batch.id)}">重新計算</button>
       </div>
@@ -1118,6 +1128,7 @@ function renderTransferCards(transfers, paidIds = null, batchId = "") {
               ? `<label class="transfer-select" title="標記這筆轉帳已完成">
                   <input type="checkbox" data-batch-transfer="${escapeHtml(transfer.id)}" data-batch-id="${escapeHtml(batchId)}" ${paidIds.has(transfer.id) ? "checked" : ""}>
                   <span class="check-box" aria-hidden="true"></span>
+                  <span class="transfer-select-text">已付款</span>
                 </label>`
               : ""
           }
@@ -1193,7 +1204,7 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
 
   openBatches.forEach((batch) => {
     const checkboxes = [...elements.settlementList.querySelectorAll(`[data-batch-id="${cssEscape(batch.id)}"]`)];
-    const saveButton = elements.settlementList.querySelector(`[data-save-batch-paid="${cssEscape(batch.id)}"]`);
+    const completeButton = elements.settlementList.querySelector(`[data-complete-settlement-batch="${cssEscape(batch.id)}"]`);
     const voidButton = elements.settlementList.querySelector(`[data-void-settlement-batch="${cssEscape(batch.id)}"]`);
 
     const refreshBatchActionText = () => {
@@ -1203,38 +1214,56 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
         .reduce((sum, transfer) => sum + transfer.amount, 0);
       const title = elements.settlementList.querySelector(`[data-batch-selection-title="${cssEscape(batch.id)}"]`);
       const summary = elements.settlementList.querySelector(`[data-batch-selection-summary="${cssEscape(batch.id)}"]`);
-      const label = elements.settlementList.querySelector(`[data-batch-action-label="${cssEscape(batch.id)}"]`);
       const isAllDone = selectedIds.length === batch.transfers.length;
 
       if (title) title.textContent = "付款狀態";
       if (summary) {
-        summary.textContent = `已勾選 ${selectedIds.length}/${batch.transfers.length} 筆，合計 ${money(selectedAmount)}。`;
+        summary.textContent = `已付款 ${selectedIds.length}/${batch.transfers.length} 筆，合計 ${money(selectedAmount)}。${
+          isAllDone ? "可完成批次並更新場次。" : ""
+        }`;
       }
-      if (label) label.textContent = "儲存付款狀態";
     };
 
-    checkboxes.forEach((checkbox) => checkbox.addEventListener("change", refreshBatchActionText));
-    refreshBatchActionText();
+    checkboxes.forEach((checkbox) =>
+      checkbox.addEventListener("change", async (event) => {
+        const transfer = batch.transfers.find((item) => item.id === checkbox.dataset.batchTransfer);
+        const selectedIds = getSelectedBatchTransferIds(batch.id);
+        const confirmText = checkbox.checked
+          ? `請確認 ${transfer?.from || ""} → ${transfer?.to || ""} ${transfer ? money(transfer.amount) : ""} 已完成付款？`
+          : `要取消這筆 ${transfer?.from || ""} → ${transfer?.to || ""} 的已付款標記嗎？`;
 
-    saveButton?.addEventListener("click", async (event) => {
-      const selectedIds = getSelectedBatchTransferIds(batch.id);
-      const isAllDone = selectedIds.length === batch.transfers.length;
-      if (isAllDone && !confirm(`確定這批 ${batch.transfers.length} 筆轉帳都已完成了嗎？場次付款狀態會一次更新。`)) return;
-
-      try {
-        event.currentTarget.disabled = true;
-        if (isAllDone) {
-          await completeSettlementBatch({ ...batch, paidTransferIds: selectedIds });
-          await loadCloudData();
-          showNotice("本批轉帳已全部結清，付款紀錄已保存，場次狀態已更新。", "success");
+        if (!confirm(confirmText)) {
+          checkbox.checked = !checkbox.checked;
+          refreshBatchActionText();
           return;
         }
 
-        await updateSettlementBatchPaidIds(batch.id, selectedIds);
+        try {
+          event.currentTarget.disabled = true;
+          await updateSettlementBatchPaidIds(batch.id, selectedIds);
+          await loadCloudData();
+          const isAllDone = selectedIds.length === batch.transfers.length;
+          showNotice(isAllDone ? "本批已全數付款，可以完成批次並更新場次。" : "已更新付款狀態。", "success");
+        } catch (error) {
+          alert(`更新付款狀態失敗：${error.message}`);
+          event.currentTarget.disabled = false;
+          checkbox.checked = !checkbox.checked;
+          refreshBatchActionText();
+        }
+      }),
+    );
+    refreshBatchActionText();
+
+    completeButton?.addEventListener("click", async (event) => {
+      if (!confirm(`確定這批 ${batch.transfers.length} 筆轉帳都已完成了嗎？場次付款狀態會一次更新。`)) return;
+
+      try {
+        event.currentTarget.disabled = true;
+        await completeSettlementBatch(batch);
         await loadCloudData();
-        showNotice("已儲存本批完成狀態；場次會在全部完成後一次更新。", "success");
+        showNotice("本批轉帳已全部結清，付款紀錄已保存，場次狀態已更新。", "success");
       } catch (error) {
-        alert(`儲存付款批次失敗：${error.message}`);
+        alert(`完成付款批次失敗：${error.message}`);
         event.currentTarget.disabled = false;
       }
     });
