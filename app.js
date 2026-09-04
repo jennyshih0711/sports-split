@@ -946,27 +946,16 @@ function renderSettlement() {
   }
 
   elements.settlementList.innerHTML =
-    openBatches.map(renderActiveSettlementBatch).join("") +
+    openBatches.map((batch, index) => renderActiveSettlementBatch(batch, index)).join("") +
     (selectableEvents.length ? renderSettlementPreview(previewTransfers, selectableEvents, openBatches.length) : "");
 
   bindSettlementControls(previewTransfers, openBatches, selectableEvents);
 }
 
 function renderSettlementPreview(transfers, selectableEvents, existingBatchCount = 0) {
-  const actionTitle = existingBatchCount ? "建立另一個付款批次" : "建立付款批次";
   return (
     `
-      ${renderSettlementEventPicker(selectableEvents)}
-      <div class="batch-settlement-actions top-settlement-actions">
-        <div>
-          <strong>${actionTitle}</strong>
-          <span>目前選了 ${selectedSettlementEventIds.size} 場，會算成 ${transfers.length} 筆轉帳；全部完成後只回寫這些場次。</span>
-        </div>
-        <button class="mark-paid-button batch-settle-button" type="button" data-create-settlement-batch ${!transfers.length ? "disabled" : ""}>
-          <span class="check-box" aria-hidden="true"></span>
-          <span>${actionTitle}</span>
-        </button>
-      </div>
+      ${renderSettlementEventPicker(selectableEvents, transfers, existingBatchCount)}
     ` +
     (transfers.length ? renderTransferCards(transfers) : `<div class="empty-state">請至少選擇一場有待付款的場次</div>`)
   );
@@ -984,8 +973,9 @@ function syncSelectedSettlementEvents(events) {
   selectedSettlementEventIds = selectedIds.length ? new Set(selectedIds) : new Set(availableIds);
 }
 
-function renderSettlementEventPicker(events) {
+function renderSettlementEventPicker(events, transfers, existingBatchCount = 0) {
   const selectedCount = events.filter((event) => selectedSettlementEventIds.has(event.id)).length;
+  const actionTitle = existingBatchCount ? "建立另一個付款批次" : "建立付款批次";
   return `
     <section class="settlement-event-picker">
       <div class="settlement-event-picker-header">
@@ -1000,6 +990,12 @@ function renderSettlementEventPicker(events) {
       </div>
       <div class="settlement-event-options">
         ${events.map(renderSettlementEventOption).join("")}
+      </div>
+      <div class="settlement-event-picker-footer">
+        <span>目前選了 ${selectedCount} 場，會算成 ${transfers.length} 筆轉帳；完成後只回寫這些場次。</span>
+        <button class="settlement-action-button settlement-action-primary" type="button" data-create-settlement-batch ${!transfers.length ? "disabled" : ""}>
+          <span>${actionTitle}</span>
+        </button>
       </div>
     </section>
   `;
@@ -1019,30 +1015,29 @@ function renderSettlementEventOption(event) {
   `;
 }
 
-function renderActiveSettlementBatch(batch) {
+function renderActiveSettlementBatch(batch, batchIndex = 0) {
   const paidIds = new Set(batch.paidTransferIds || []);
   const remaining = batch.transfers.length - paidIds.size;
   const sourceEvents = getBatchSourceEvents(batch);
   return (
     `
-      <section class="settlement-batch-group">
-      <div class="settlement-batch-banner">
-        <div>
+      <section class="settlement-batch-group batch-color-${batchIndex % 3}">
+      <div class="settlement-batch-header">
+        <div class="settlement-batch-title">
           <strong>${escapeHtml(formatPaymentDate(batch.createdAt))} 建立的批次付款</strong>
           <span>付款批次進行中 · 剩下 ${remaining} 筆未完成</span>
         </div>
-        <button class="ghost-button compact" type="button" data-void-settlement-batch="${escapeHtml(batch.id)}">重新計算</button>
-      </div>
-      ${renderBatchSourceEvents(batch, sourceEvents)}
-      <div class="batch-settlement-actions top-settlement-actions compact-settlement-actions">
-        <div>
-          <strong data-batch-selection-title="${escapeHtml(batch.id)}">儲存完成狀態</strong>
-          <span data-batch-selection-summary="${escapeHtml(batch.id)}">勾選已經完成轉帳的項目；場次會在全部完成後一次更新。</span>
+        ${renderBatchSourceEvents(batch, sourceEvents)}
+        <div class="batch-settlement-actions compact-settlement-actions">
+          <div>
+            <strong data-batch-selection-title="${escapeHtml(batch.id)}">付款狀態</strong>
+            <span data-batch-selection-summary="${escapeHtml(batch.id)}">已勾選 0/${batch.transfers.length} 筆，合計 $0。</span>
+          </div>
+          <button class="settlement-action-button settlement-action-primary" type="button" data-save-batch-paid="${escapeHtml(batch.id)}">
+            <span data-batch-action-label="${escapeHtml(batch.id)}">儲存付款狀態</span>
+          </button>
         </div>
-        <button class="mark-paid-button batch-settle-button" type="button" data-save-batch-paid="${escapeHtml(batch.id)}">
-          <span class="check-box" aria-hidden="true"></span>
-          <span data-batch-action-label="${escapeHtml(batch.id)}">儲存完成狀態</span>
-        </button>
+        <button class="settlement-action-button settlement-action-secondary settlement-batch-reset" type="button" data-void-settlement-batch="${escapeHtml(batch.id)}">重新計算</button>
       </div>
     ` +
     renderTransferCards(batch.transfers, paidIds, batch.id) +
@@ -1211,13 +1206,11 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
       const label = elements.settlementList.querySelector(`[data-batch-action-label="${cssEscape(batch.id)}"]`);
       const isAllDone = selectedIds.length === batch.transfers.length;
 
-      if (title) title.textContent = isAllDone ? "全部完成並回寫場次" : "儲存完成狀態";
+      if (title) title.textContent = "付款狀態";
       if (summary) {
-        summary.textContent = `已勾選 ${selectedIds.length}/${batch.transfers.length} 筆，合計 ${money(selectedAmount)}。${
-          isAllDone ? "按下後會寫入付款紀錄並一次更新場次。" : "場次會等全部完成後才更新。"
-        }`;
+        summary.textContent = `已勾選 ${selectedIds.length}/${batch.transfers.length} 筆，合計 ${money(selectedAmount)}。`;
       }
-      if (label) label.textContent = isAllDone ? "全部完成並回寫" : "儲存完成狀態";
+      if (label) label.textContent = "儲存付款狀態";
     };
 
     checkboxes.forEach((checkbox) => checkbox.addEventListener("change", refreshBatchActionText));

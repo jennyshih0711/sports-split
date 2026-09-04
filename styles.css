@@ -636,17 +636,17 @@ button {
 
 .transfer-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px 10px;
   align-items: center;
-  padding: 14px;
+  padding: 9px 12px;
   background: #f8fbf8;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
 .transfer-card.has-select {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 .transfer-card.is-settled {
@@ -657,8 +657,8 @@ button {
 .transfer-select {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
 }
 
@@ -685,38 +685,57 @@ button {
   transform: rotate(45deg);
 }
 
-.settlement-batch-banner {
+.settlement-batch-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-rows: auto auto;
+  gap: 8px 12px;
   align-items: center;
-  padding: 12px 14px;
-  background: #eef6fb;
-  border: 1px solid #b9d8e8;
-  border-radius: 8px;
 }
 
 .settlement-batch-group {
+  position: relative;
   display: grid;
-  gap: 10px;
-  padding-bottom: 4px;
-  border-bottom: 1px dashed #cfe0d6;
+  gap: 8px;
+  padding: 10px 12px 12px 16px;
+  background: #eef6fb;
+  border: 2px solid #78b5d3;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(47, 128, 166, 0.08), inset 5px 0 0 #2f80a6;
 }
 
-.settlement-batch-banner strong,
-.settlement-batch-banner span {
+.settlement-batch-group.batch-color-1 {
+  background: #f2f8ef;
+  border-color: #91bf75;
+  box-shadow: 0 4px 12px rgba(91, 133, 64, 0.08), inset 5px 0 0 #5f9347;
+}
+
+.settlement-batch-group.batch-color-2 {
+  background: #fff7ed;
+  border-color: #e4b271;
+  box-shadow: 0 4px 12px rgba(190, 122, 43, 0.08), inset 5px 0 0 #c88738;
+}
+
+.settlement-batch-title strong,
+.settlement-batch-title span {
   display: block;
 }
 
-.settlement-batch-banner strong {
-  color: var(--ink);
-  font-size: 0.96rem;
+.settlement-batch-title {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
 }
 
-.settlement-batch-banner span {
-  margin-top: 3px;
+.settlement-batch-title strong {
+  color: var(--ink);
+  font-size: 0.98rem;
+}
+
+.settlement-batch-title span {
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
@@ -728,46 +747,40 @@ button {
   border-color: #b9d8e8;
 }
 
-.batch-source-events {
-  padding: 0 12px;
-}
-
-.batch-source-events summary {
-  width: fit-content;
-  color: var(--blue);
-  font-size: 0.82rem;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.batch-source-event-list {
-  display: grid;
+.batch-source-event-strip {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  min-width: 0;
+  padding: 0;
 }
 
 .batch-source-event {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.batch-source-event strong,
-.batch-source-event span {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid #c7dce8;
+  border-radius: 6px;
 }
 
 .batch-source-event strong {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
 }
 
-.batch-source-event span {
+.batch-source-event small,
+.batch-source-missing {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 800;
+}
+
+.batch-source-missing {
+  align-self: center;
 }
 
 .extra-settlement-section {
@@ -843,6 +856,25 @@ button {
   max-height: 260px;
   overflow: auto;
   padding-right: 2px;
+}
+
+.settlement-event-picker-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.settlement-event-picker-footer > span {
+  display: block;
+}
+
+.settlement-event-picker-footer > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .settlement-event-option {
@@ -956,25 +988,6 @@ button {
   cursor: not-allowed;
 }
 
-.mark-paid-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 12px 0 10px;
-  color: var(--green-dark);
-  background: #f0fbf4;
-  border: 1px solid #8fc9a7;
-  border-radius: 8px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.mark-paid-button:hover {
-  background: #ddf3e6;
-  border-color: var(--green);
-}
-
 .check-box {
   position: relative;
   display: inline-block;
@@ -985,21 +998,78 @@ button {
   border-radius: 4px;
 }
 
-.mark-paid-button:hover .check-box::after {
-  content: "";
-  position: absolute;
-  left: 3px;
-  top: 0;
-  width: 5px;
-  height: 9px;
-  border: solid var(--green);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.settlement-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
-.mark-paid-button:disabled {
-  opacity: 0.58;
-  cursor: wait;
+.settlement-action-button span,
+.batch-settlement-actions .settlement-action-button span {
+  display: inline;
+  color: inherit;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.settlement-action-primary {
+  color: #fff;
+  background: var(--green);
+  border: 1px solid var(--green);
+}
+
+.settlement-action-primary span {
+  color: #fff;
+}
+
+.settlement-action-primary:hover {
+  background: var(--green-dark);
+  border-color: var(--green-dark);
+}
+
+.settlement-action-secondary {
+  color: var(--blue);
+  background: #f7fbff;
+  border: 1px solid #aacfe4;
+}
+
+.settlement-action-secondary span {
+  color: var(--blue);
+}
+
+.settlement-action-secondary:hover {
+  background: #eaf5fb;
+  border-color: #78b5d3;
+}
+
+.settlement-action-button:disabled {
+  cursor: not-allowed;
+}
+
+.settlement-action-primary:disabled {
+  color: #f7fbf8;
+  background: #6f9b8d;
+  border-color: #6f9b8d;
+}
+
+.settlement-action-primary:disabled span {
+  color: #f7fbf8;
+}
+
+.settlement-action-secondary:disabled {
+  color: #7b8d9a;
+  background: #eef4f7;
+  border-color: #c6d8e2;
+}
+
+.settlement-action-secondary:disabled span {
+  color: #7b8d9a;
 }
 
 .batch-settlement-actions {
@@ -1009,11 +1079,23 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 14px;
+  padding: 12px 14px;
   background: #fffdf6;
   border: 1px solid #edc879;
   border-radius: 8px;
   box-shadow: 0 12px 30px rgba(31, 42, 40, 0.12);
+}
+
+.compact-settlement-actions {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .batch-settlement-actions strong,
@@ -1022,41 +1104,48 @@ button {
 }
 
 .batch-settlement-actions strong {
-  font-size: 0.96rem;
+  font-size: 0.9rem;
 }
 
 .batch-settlement-actions span {
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
-}
-
-.batch-settle-button {
-  min-height: 40px;
 }
 
 .top-settlement-actions {
   position: static;
 }
 
+.settlement-batch-reset {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+}
+
 .transfer-details {
-  grid-column: 1 / -1;
-  padding-top: 4px;
+  grid-column: auto;
+  padding-top: 0;
 }
 
 .transfer-details summary {
   width: fit-content;
   color: var(--blue);
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   font-weight: 900;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.transfer-details[open] {
+  grid-column: 1 / -1;
 }
 
 .transfer-details p {
-  margin: 8px 0;
+  margin: 6px 0;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .detail-grid {
@@ -1106,6 +1195,7 @@ button {
   gap: 8px;
   flex-wrap: wrap;
   font-weight: 800;
+  font-size: 0.95rem;
 }
 
 .arrow {
@@ -1113,7 +1203,7 @@ button {
 }
 
 .amount {
-  font-size: 1.25rem;
+  font-size: 1.08rem;
   font-weight: 900;
   color: var(--red);
   white-space: nowrap;
@@ -1713,6 +1803,24 @@ select:focus {
     padding: 14px;
   }
 
+  .transfer-card,
+  .transfer-card.has-select {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .transfer-card:not(.has-select) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .transfer-details {
+    grid-column: 1 / -1;
+  }
+
+  .batch-source-event {
+    display: grid;
+    gap: 2px;
+  }
+
   .calendar-panel {
     overflow: hidden;
   }
@@ -1897,9 +2005,10 @@ select:focus {
   .event-edit-fields,
   .detail-grid,
   .batch-settlement-actions,
-  .settlement-batch-banner,
+  .settlement-batch-header,
   .extra-settlement-header,
   .settlement-event-picker-header,
+  .settlement-event-picker-footer,
   .payment-record-card,
   .payment-history-pagination,
   .settlement-summary,
@@ -1908,6 +2017,23 @@ select:focus {
   .person-chip.editing,
   .inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .settlement-batch-header {
+    grid-template-rows: auto;
+  }
+
+  .settlement-batch-title,
+  .batch-source-event-strip,
+  .compact-settlement-actions,
+  .settlement-batch-reset {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: stretch;
+  }
+
+  .settlement-batch-reset {
+    justify-self: start;
   }
 
   .person-actions {
