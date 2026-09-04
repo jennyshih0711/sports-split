@@ -1022,17 +1022,19 @@ function renderSettlementEventOption(event) {
 function renderActiveSettlementBatch(batch) {
   const paidIds = new Set(batch.paidTransferIds || []);
   const remaining = batch.transfers.length - paidIds.size;
+  const sourceEvents = getBatchSourceEvents(batch);
   return (
     `
       <section class="settlement-batch-group">
       <div class="settlement-batch-banner">
         <div>
-          <strong>付款批次進行中</strong>
-          <span>${formatPaymentDate(batch.createdAt)} 建立，剩下 ${remaining} 筆尚未完成。</span>
+          <strong>${escapeHtml(formatPaymentDate(batch.createdAt))} 建立的批次付款</strong>
+          <span>付款批次進行中 · 剩下 ${remaining} 筆未完成</span>
         </div>
         <button class="ghost-button compact" type="button" data-void-settlement-batch="${escapeHtml(batch.id)}">重新計算</button>
       </div>
-      <div class="batch-settlement-actions top-settlement-actions">
+      ${renderBatchSourceEvents(batch, sourceEvents)}
+      <div class="batch-settlement-actions top-settlement-actions compact-settlement-actions">
         <div>
           <strong data-batch-selection-title="${escapeHtml(batch.id)}">儲存完成狀態</strong>
           <span data-batch-selection-summary="${escapeHtml(batch.id)}">勾選已經完成轉帳的項目；場次會在全部完成後一次更新。</span>
@@ -1042,36 +1044,32 @@ function renderActiveSettlementBatch(batch) {
           <span data-batch-action-label="${escapeHtml(batch.id)}">儲存完成狀態</span>
         </button>
       </div>
-      ${renderBatchSourceEvents(batch)}
     ` +
     renderTransferCards(batch.transfers, paidIds, batch.id) +
     `</section>`
   );
 }
 
-function renderBatchSourceEvents(batch) {
+function getBatchSourceEvents(batch) {
   const eventIds = batchSourceEventIds(batch);
-  if (!eventIds.length) {
-    return `
-      <details class="batch-source-events">
-        <summary>查看本批場次</summary>
-        <div class="detail-empty">這個批次沒有保存場次清單，可從付款明細查看來源。</div>
-      </details>
-    `;
-  }
-
   const events = eventIds
     .map((eventId) => state.events.find((event) => event.id === eventId))
     .filter(Boolean);
+  return events;
+}
+
+function renderBatchSourceEvents(batch, events = getBatchSourceEvents(batch)) {
+  const eventIds = batchSourceEventIds(batch);
   const missingCount = eventIds.length - events.length;
+  if (!eventIds.length) {
+    return `<div class="batch-source-event-strip">本批場次未保存，可從付款明細查看來源。</div>`;
+  }
 
   return `
-    <details class="batch-source-events">
-      <summary>查看本批場次（${events.length}${missingCount ? `，另有 ${missingCount} 場已不存在` : ""}）</summary>
-      <div class="batch-source-event-list">
-        ${events.map(renderBatchSourceEvent).join("")}
-      </div>
-    </details>
+    <div class="batch-source-event-strip">
+      ${events.map(renderBatchSourceEvent).join("")}
+      ${missingCount ? `<span class="batch-source-missing">另有 ${missingCount} 場已不存在</span>` : ""}
+    </div>
   `;
 }
 
@@ -1092,10 +1090,10 @@ function batchSourceEventIds(batch) {
 function renderBatchSourceEvent(event) {
   const unpaidRows = event.participants.filter((person) => person.status === "unpaid" && person.name !== event.payer);
   return `
-    <article class="batch-source-event">
+    <span class="batch-source-event">
       <strong>${escapeHtml(formatEventDate(event.date))} ${escapeHtml(formatEventTime(event.time))} ${escapeHtml(event.sport)}</strong>
-      <span>付款人 ${escapeHtml(event.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(event))}</span>
-    </article>
+      <small>付款人 ${escapeHtml(event.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(event))}</small>
+    </span>
   `;
 }
 
@@ -1138,7 +1136,7 @@ function renderTransferCards(transfers, paidIds = null, batchId = "") {
           </div>
           <div class="amount">${money(transfer.amount)}</div>
           <details class="transfer-details">
-            <summary>查看合併明細</summary>
+            <summary>明細</summary>
             <p>此筆為全體淨額合併結果，可能不是單一場次的一對一付款。</p>
             <div class="detail-grid">
               <div>
