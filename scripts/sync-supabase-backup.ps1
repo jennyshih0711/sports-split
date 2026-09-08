@@ -29,6 +29,12 @@ $Events = @(Get-SupabaseTable -Table "events" -Order "created_at.desc")
 $SettlementPayments = @(Get-SupabaseTable -Table "settlement_payments" -Order "created_at.desc")
 
 try {
+  $ExtraExpenses = @(Get-SupabaseTable -Table "extra_expenses" -Order "created_at.desc")
+} catch {
+  $ExtraExpenses = @()
+}
+
+try {
   $SettlementBatches = @(Get-SupabaseTable -Table "settlement_batches" -Order "created_at.desc")
 } catch {
   $SettlementBatches = @()
@@ -40,11 +46,13 @@ $Payload = [ordered]@{
   counts = [ordered]@{
     people = $People.Count
     events = $Events.Count
+    extra_expenses = $ExtraExpenses.Count
     settlement_payments = $SettlementPayments.Count
     settlement_batches = $SettlementBatches.Count
   }
   people = $People
   events = $Events
+  extra_expenses = $ExtraExpenses
   settlement_payments = $SettlementPayments
   settlement_batches = $SettlementBatches
 }

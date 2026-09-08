@@ -269,6 +269,14 @@ button {
   margin-top: 12px;
 }
 
+.settlement-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .calendar-panel {
   display: grid;
   gap: 10px;
@@ -1246,6 +1254,10 @@ button {
   align-items: end;
 }
 
+.extra-expense-fields {
+  grid-template-columns: minmax(132px, 0.7fr) minmax(220px, 1.4fr) minmax(120px, 0.7fr) minmax(150px, 0.8fr);
+}
+
 .event-fields-row label {
   gap: 5px;
   font-size: 0.8rem;
@@ -1298,6 +1310,56 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfb;
+}
+
+.extra-expense-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  max-height: 178px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.extra-expense-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.extra-expense-person input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.extra-expense-person input:checked + .check-box {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.extra-expense-person input:checked + .check-box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .participant-row {

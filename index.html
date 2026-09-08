@@ -30,9 +30,12 @@
               <p class="section-kicker">誰要付錢</p>
               <h2>最後需要轉帳</h2>
             </div>
-            <span class="pill" id="settlementCount">0 筆</span>
+            <div class="settlement-header-actions">
+              <button class="primary-button" type="button" id="openExtraExpenseModalBtn">新增額外分帳</button>
+              <span class="pill" id="settlementCount">0 筆</span>
+            </div>
           </div>
-          <p class="settlement-note">付款金額僅結算至今日已完成運動的場次</p>
+          <p class="settlement-note">付款金額會結算已完成場次與額外分帳項目</p>
           <div id="settlementList" class="settlement-list"></div>
           <div class="settlement-summary">
             <article>
@@ -55,6 +58,50 @@
           <div id="paymentHistoryList" class="payment-history-list"></div>
         </section>
       </section>
+
+      <div class="modal-backdrop" id="extraExpenseModal" hidden>
+        <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="extraExpenseModalTitle">
+          <div class="modal-header">
+            <div>
+              <p class="section-kicker">額外分帳</p>
+              <h2 id="extraExpenseModalTitle">新增額外分帳</h2>
+            </div>
+            <button class="icon-button" type="button" id="closeExtraExpenseModalBtn" aria-label="關閉">×</button>
+          </div>
+          <form id="extraExpenseForm" class="compact-event-form">
+            <div class="event-fields-row extra-expense-fields">
+              <label>
+              日期
+              <input name="date" type="date" required />
+              </label>
+              <label>
+              項目名稱
+              <input name="title" placeholder="買羽球" required />
+              </label>
+              <label>
+              費用總計
+              <input name="total" type="number" min="0" step="1" placeholder="600" required />
+              </label>
+              <label>
+              付款人
+              <select name="payer" required></select>
+              </label>
+            </div>
+            <label class="wide">
+              備註
+              <input name="note" placeholder="例如：一筒羽球" />
+            </label>
+            <div class="wide">
+              <div class="row-title">分攤人</div>
+              <div id="extraExpenseParticipantPicker" class="extra-expense-picker"></div>
+            </div>
+            <div class="modal-actions">
+              <button class="ghost-panel-button" type="button" id="cancelExtraExpenseModalBtn">取消</button>
+              <button class="primary-button" type="submit">新增額外分帳</button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <section class="view-panel" id="eventsView">
         <div class="events-grid">

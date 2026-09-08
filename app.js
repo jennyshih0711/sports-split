@@ -3,6 +3,8 @@ const supabaseKey = "sb_publishable_doUfmTRHBzXEMzGlBrmzNQ_1p495QJb";
 const PENDING_PAYER = "待確認";
 const SETTLEMENT_BATCH_OPEN = "open";
 const SETTLEMENT_BATCH_COMPLETED = "completed";
+const SETTLEMENT_SOURCE_EVENT = "event";
+const SETTLEMENT_SOURCE_EXTRA = "extra";
 const PAYMENT_HISTORY_PAGE_SIZE = 20;
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
@@ -75,11 +77,13 @@ const seedData = {
 let state = {
   people: [],
   events: [],
+  extraExpenses: [],
   paymentHistory: [],
   settlementBatches: [],
   activeSettlementBatch: null,
   paymentHistoryError: "",
   settlementBatchError: "",
+  extraExpenseError: "",
 };
 let db = null;
 let clockTimer = null;
@@ -97,6 +101,12 @@ const elements = {
   settlementCount: document.querySelector("#settlementCount"),
   settlementList: document.querySelector("#settlementList"),
   paymentHistoryList: document.querySelector("#paymentHistoryList"),
+  openExtraExpenseModalBtn: document.querySelector("#openExtraExpenseModalBtn"),
+  extraExpenseModal: document.querySelector("#extraExpenseModal"),
+  closeExtraExpenseModalBtn: document.querySelector("#closeExtraExpenseModalBtn"),
+  cancelExtraExpenseModalBtn: document.querySelector("#cancelExtraExpenseModalBtn"),
+  extraExpenseForm: document.querySelector("#extraExpenseForm"),
+  extraExpenseParticipantPicker: document.querySelector("#extraExpenseParticipantPicker"),
   eventForm: document.querySelector("#eventForm"),
   participantPicker: document.querySelector("#participantPicker"),
   participantTemplate: document.querySelector("#participantTemplate"),
@@ -187,7 +197,51 @@ elements.personForm.addEventListener("submit", async (event) => {
   }
 });
 
+elements.extraExpenseForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.extraExpenseForm);
+  const payer = String(form.get("payer"));
+  const participants = [...elements.extraExpenseParticipantPicker.querySelectorAll("[data-extra-expense-participant]")]
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => ({
+      name: checkbox.dataset.extraExpenseParticipant,
+      status: checkbox.dataset.extraExpenseParticipant === payer ? "paid" : "unpaid",
+    }));
+
+  if (!participants.some((person) => person.name === payer)) {
+    participants.unshift({ name: payer, status: "paid" });
+  }
+
+  if (!participants.length) return;
+
+  const expense = {
+    date: normalizeDateInput(form.get("date")),
+    title: clean(form.get("title")),
+    total: Number(form.get("total")),
+    payer,
+    participants,
+    note: clean(form.get("note")),
+  };
+
+  try {
+    await insertExtraExpense(expense);
+    elements.extraExpenseForm.reset();
+    closeExtraExpenseModal();
+    await loadCloudData();
+    showNotice("額外分帳項目已新增，可在付款批次中一起結算。", "success");
+  } catch (error) {
+    alert(`新增額外分帳失敗：${error.message}。如果尚未建立資料表，請先執行 database/create-extra-expenses.sql。`);
+  }
+});
+
 elements.sportFilter.addEventListener("change", renderHistory);
+
+elements.openExtraExpenseModalBtn?.addEventListener("click", openExtraExpenseModal);
+elements.closeExtraExpenseModalBtn?.addEventListener("click", closeExtraExpenseModal);
+elements.cancelExtraExpenseModalBtn?.addEventListener("click", closeExtraExpenseModal);
+elements.extraExpenseModal?.addEventListener("click", (event) => {
+  if (event.target === elements.extraExpenseModal) closeExtraExpenseModal();
+});
 
 elements.openEventModalBtn?.addEventListener("click", openEventModal);
 elements.closeEventModalBtn?.addEventListener("click", closeEventModal);
@@ -199,6 +253,9 @@ elements.eventModal?.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && elements.eventModal && !elements.eventModal.hidden) {
     closeEventModal();
+  }
+  if (event.key === "Escape" && elements.extraExpenseModal && !elements.extraExpenseModal.hidden) {
+    closeExtraExpenseModal();
   }
 });
 
@@ -295,11 +352,13 @@ async function loadCloudData() {
   const [
     { data: peopleRows, error: peopleError },
     { data: eventRows, error: eventsError },
+    { data: extraExpenseRows, error: extraExpenseError },
     { data: paymentRows, error: paymentsError },
     { data: batchRows, error: batchError },
   ] = await Promise.all([
     db.from("people").select("name,email").order("name", { ascending: true }),
     db.from("events").select("id,date,time,sport,total,payer,participants,created_at").order("created_at", { ascending: false }),
+    db.from("extra_expenses").select("id,date,title,total,payer,participants,note,status,created_at,settled_at").order("created_at", { ascending: false }),
     db
       .from("settlement_payments")
       .select("id,from_person,to_person,amount,details,created_at")
@@ -319,11 +378,13 @@ async function loadCloudData() {
   state = {
     people: (peopleRows || []).map((row) => ({ name: row.name, email: row.email || "" })),
     events: (eventRows || []).map(fromEventRow),
+    extraExpenses: extraExpenseError ? [] : (extraExpenseRows || []).map(fromExtraExpenseRow),
     paymentHistory: paymentsError ? [] : (paymentRows || []).map(fromPaymentRow),
     settlementBatches: batchError ? [] : (batchRows || []).map(fromSettlementBatchRow),
     activeSettlementBatch: batchError ? null : (batchRows || []).map(fromSettlementBatchRow)[0] || null,
     paymentHistoryError: paymentsError ? paymentsError.message : "",
     settlementBatchError: batchError ? batchError.message : "",
+    extraExpenseError: extraExpenseError ? extraExpenseError.message : "",
   };
   render();
 }
@@ -517,20 +578,45 @@ async function insertSettlementPayments(transfers) {
   if (error) throw error;
 }
 
-async function createSettlementBatch(transfers, sourceEventIds, excludedDetailKeys = new Set()) {
+async function createSettlementBatch(transfers, sourceIds, excludedDetailKeys = new Set()) {
   const rows = normalizeTransfersForStorage(transfers);
+  const sourceEventIds = [...sourceIds].filter((id) => settlementSourceType(id) === SETTLEMENT_SOURCE_EVENT).map(settlementSourceRawId);
+  const sourceExtraExpenseIds = [...sourceIds]
+    .filter((id) => settlementSourceType(id) === SETTLEMENT_SOURCE_EXTRA)
+    .map(settlementSourceRawId);
   const { error } = await db.from("settlement_batches").insert({
     status: SETTLEMENT_BATCH_OPEN,
     transfers: rows,
     paid_transfer_ids: [],
-    source_detail_keys: [...collectSettlementDetailKeys(excludedDetailKeys, sourceEventIds)],
+    source_detail_keys: [...collectSettlementDetailKeys(excludedDetailKeys, sourceIds)],
     source_event_ids: [...sourceEventIds],
+    source_extra_expense_ids: [...sourceExtraExpenseIds],
   });
   if (error) throw error;
 }
 
 async function updateSettlementBatchPaidIds(batchId, paidIds) {
   const { error } = await db.from("settlement_batches").update({ paid_transfer_ids: paidIds }).eq("id", batchId);
+  if (error) throw error;
+}
+
+async function insertExtraExpense(expense) {
+  const { error } = await db.from("extra_expenses").insert({
+    date: expense.date,
+    title: expense.title,
+    total: expense.total,
+    payer: expense.payer,
+    participants: expense.participants,
+    note: expense.note || "",
+    status: "open",
+  });
+  if (error) throw error;
+}
+
+async function updateExtraExpenseParticipants(expenseId, participants, status = "open") {
+  const changes = { participants, status };
+  if (status === "settled") changes.settled_at = new Date().toISOString();
+  const { error } = await db.from("extra_expenses").update(changes).eq("id", expenseId);
   if (error) throw error;
 }
 
@@ -603,7 +689,10 @@ function batchDetailKeys(batch) {
   const keys = new Set();
   (batch?.transfers || []).forEach((transfer) => {
     [...(transfer.fromDetails || []), ...(transfer.toDetails || [])].forEach((detail) => {
-      const key = settlementDetailKey(detail.eventId, detail.personName);
+      const key =
+        detail.sourceType === SETTLEMENT_SOURCE_EXTRA || detail.extraExpenseId
+          ? extraExpenseDetailKey(detail.extraExpenseId, detail.personName)
+          : settlementDetailKey(detail.eventId, detail.personName);
       if (key) keys.add(key);
     });
   });
@@ -615,13 +704,52 @@ function settlementDetailKey(eventId, personName) {
   return `${eventId}::${personName}`;
 }
 
+function extraExpenseDetailKey(expenseId, personName) {
+  if (!expenseId || !personName) return "";
+  return `${SETTLEMENT_SOURCE_EXTRA}::${expenseId}::${personName}`;
+}
+
+function settlementSourceKey(type, id) {
+  if (!id) return "";
+  return `${type}:${id}`;
+}
+
+function settlementSourceType(sourceId) {
+  const text = String(sourceId || "");
+  if (text.startsWith(`${SETTLEMENT_SOURCE_EXTRA}:`)) return SETTLEMENT_SOURCE_EXTRA;
+  return SETTLEMENT_SOURCE_EVENT;
+}
+
+function settlementSourceRawId(sourceId) {
+  const text = String(sourceId || "");
+  const marker = `${settlementSourceType(text)}:`;
+  return text.startsWith(marker) ? text.slice(marker.length) : text;
+}
+
+function selectedSourceIdsByType(sourceIds, type) {
+  if (!sourceIds) return null;
+  return new Set([...sourceIds].filter((id) => settlementSourceType(id) === type).map(settlementSourceRawId));
+}
+
 function collectSettlementDetailKeys(excludedDetailKeys = new Set(), includedEventIds = null) {
   const keys = new Set();
-  state.events.filter((event) => isSettlementEventIncluded(event, includedEventIds)).forEach((event) => {
+  const includedEvents = selectedSourceIdsByType(includedEventIds, SETTLEMENT_SOURCE_EVENT);
+  const includedExpenses = selectedSourceIdsByType(includedEventIds, SETTLEMENT_SOURCE_EXTRA);
+
+  state.events.filter((event) => isSettlementEventIncluded(event, includedEvents)).forEach((event) => {
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
       .forEach((person) => {
         const key = settlementDetailKey(event.id, person.name);
+        if (key && !excludedDetailKeys.has(key)) keys.add(key);
+      });
+  });
+
+  state.extraExpenses.filter((expense) => isSettlementExtraExpenseIncluded(expense, includedExpenses)).forEach((expense) => {
+    expense.participants
+      .filter((person) => person.status === "unpaid" && person.name !== expense.payer)
+      .forEach((person) => {
+        const key = extraExpenseDetailKey(expense.id, person.name);
         if (key && !excludedDetailKeys.has(key)) keys.add(key);
       });
   });
@@ -632,6 +760,13 @@ function hasUnlockedSettlementDetails(event, excludedDetailKeys = new Set()) {
   return event.participants.some((person) => {
     if (person.status !== "unpaid" || person.name === event.payer) return false;
     return !excludedDetailKeys.has(settlementDetailKey(event.id, person.name));
+  });
+}
+
+function hasUnlockedExtraExpenseDetails(expense, excludedDetailKeys = new Set()) {
+  return expense.participants.some((person) => {
+    if (person.status !== "unpaid" || person.name === expense.payer) return false;
+    return !excludedDetailKeys.has(extraExpenseDetailKey(expense.id, person.name));
   });
 }
 
@@ -736,6 +871,8 @@ function showSupplementalInviteResult(result, personName) {
 async function clearCloudData() {
   const eventDelete = await db.from("events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
   if (eventDelete.error) throw eventDelete.error;
+  const extraExpenseDelete = await db.from("extra_expenses").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (extraExpenseDelete.error) throw extraExpenseDelete.error;
   const peopleDelete = await db.from("people").delete().neq("name", "__never__");
   if (peopleDelete.error) throw peopleDelete.error;
   const paymentDelete = await db.from("settlement_payments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -762,6 +899,7 @@ function subscribeToChanges() {
   db.channel("sports-splitter-changes")
     .on("postgres_changes", { event: "*", schema: "public", table: "people" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => loadCloudData())
+    .on("postgres_changes", { event: "*", schema: "public", table: "extra_expenses" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "settlement_payments" }, () => loadCloudData())
     .on("postgres_changes", { event: "*", schema: "public", table: "settlement_batches" }, () => loadCloudData())
     .subscribe();
@@ -777,6 +915,21 @@ function fromEventRow(row) {
     payer: row.payer,
     participants: Array.isArray(row.participants) ? row.participants : [],
     createdAt: row.created_at,
+  };
+}
+
+function fromExtraExpenseRow(row) {
+  return {
+    id: row.id,
+    date: row.date,
+    title: row.title,
+    total: Number(row.total || 0),
+    payer: row.payer,
+    participants: Array.isArray(row.participants) ? row.participants : [],
+    note: row.note || "",
+    status: row.status || "open",
+    createdAt: row.created_at,
+    settledAt: row.settled_at,
   };
 }
 
@@ -801,6 +954,7 @@ function fromSettlementBatchRow(row) {
     paidTransferIds: Array.isArray(row.paid_transfer_ids) ? row.paid_transfer_ids : [],
     sourceDetailKeys: Array.isArray(row.source_detail_keys) ? row.source_detail_keys : [],
     sourceEventIds: Array.isArray(row.source_event_ids) ? row.source_event_ids : [],
+    sourceExtraExpenseIds: Array.isArray(row.source_extra_expense_ids) ? row.source_extra_expense_ids : [],
     createdAt: row.created_at,
     finalizedAt: row.finalized_at,
   };
@@ -871,6 +1025,19 @@ function setEventFormBusy(isBusy) {
   if (elements.cancelEventModalBtn) elements.cancelEventModalBtn.disabled = isBusy;
 }
 
+function openExtraExpenseModal() {
+  if (!elements.extraExpenseModal || !elements.extraExpenseForm) return;
+  renderExtraExpenseFormControls();
+  elements.extraExpenseForm.elements.date.value = dateKey(new Date());
+  elements.extraExpenseModal.hidden = false;
+  elements.extraExpenseForm.elements.title?.focus();
+}
+
+function closeExtraExpenseModal() {
+  if (!elements.extraExpenseModal) return;
+  elements.extraExpenseModal.hidden = true;
+}
+
 function renderControls() {
   const payerSelect = elements.eventForm.elements.payer;
   payerSelect.innerHTML = [
@@ -899,6 +1066,30 @@ function renderControls() {
     row.querySelector("span").textContent = name;
     elements.participantPicker.appendChild(row);
   });
+
+  renderExtraExpenseFormControls();
+}
+
+function renderExtraExpenseFormControls() {
+  if (!elements.extraExpenseForm || !elements.extraExpenseParticipantPicker) return;
+  const payerSelect = elements.extraExpenseForm.elements.payer;
+  const currentPayer = payerSelect.value;
+  payerSelect.innerHTML = personNames()
+    .map((name) => `<option value="${escapeHtml(name)}" ${name === currentPayer ? "selected" : ""}>${escapeHtml(name)}</option>`)
+    .join("");
+  if (!payerSelect.value && personNames().length) payerSelect.value = personNames()[0];
+
+  elements.extraExpenseParticipantPicker.innerHTML = personNames()
+    .map(
+      (name) => `
+        <label class="extra-expense-person">
+          <input type="checkbox" data-extra-expense-participant="${escapeHtml(name)}" checked>
+          <span class="check-box" aria-hidden="true"></span>
+          <span>${escapeHtml(name)}</span>
+        </label>
+      `,
+    )
+    .join("");
 }
 
 function fillHourSelect(select, fallbackHour) {
@@ -918,8 +1109,8 @@ function hourOptions(selectedHour) {
 function renderSettlement() {
   const openBatches = state.settlementBatches || [];
   const lockedKeys = batchDetailKeys(openBatches);
-  const selectableEvents = getSelectableSettlementEvents(lockedKeys);
-  syncSelectedSettlementEvents(selectableEvents);
+  const selectableSources = getSelectableSettlementSources(lockedKeys);
+  syncSelectedSettlementSources(selectableSources);
   const previewTransfers = calculateSettlement(lockedKeys, selectedSettlementEventIds);
   const openBatchTransfers = openBatches.flatMap((batch) =>
     batch.transfers.filter((transfer) => !new Set(batch.paidTransferIds || []).has(transfer.id)),
@@ -940,24 +1131,24 @@ function renderSettlement() {
     return;
   }
 
-  if (!openBatches.length && !selectableEvents.length) {
+  if (!openBatches.length && !selectableSources.length) {
     elements.settlementList.innerHTML = `<div class="empty-state">目前沒有待付款項</div>`;
     return;
   }
 
   elements.settlementList.innerHTML =
     openBatches.map((batch, index) => renderActiveSettlementBatch(batch, index)).join("") +
-    (selectableEvents.length ? renderSettlementPreview(previewTransfers, selectableEvents, openBatches.length) : "");
+    (selectableSources.length ? renderSettlementPreview(previewTransfers, selectableSources, openBatches.length) : "");
 
-  bindSettlementControls(previewTransfers, openBatches, selectableEvents);
+  bindSettlementControls(previewTransfers, openBatches, selectableSources);
 }
 
-function renderSettlementPreview(transfers, selectableEvents, existingBatchCount = 0) {
+function renderSettlementPreview(transfers, selectableSources, existingBatchCount = 0) {
   return (
     `
-      ${renderSettlementEventPicker(selectableEvents, transfers, existingBatchCount)}
+      ${renderSettlementEventPicker(selectableSources, transfers, existingBatchCount)}
     ` +
-    (transfers.length ? renderTransferCards(transfers) : `<div class="empty-state">請至少選擇一場有待付款的場次</div>`)
+    (transfers.length ? renderTransferCards(transfers) : `<div class="empty-state">請至少選擇一個有待付款的項目</div>`)
   );
 }
 
@@ -967,21 +1158,38 @@ function getSelectableSettlementEvents(excludedDetailKeys = new Set()) {
     .sort(compareEventsByRecentDate);
 }
 
-function syncSelectedSettlementEvents(events) {
-  const availableIds = new Set(events.map((event) => event.id));
+function getSelectableExtraExpenses(excludedDetailKeys = new Set()) {
+  return state.extraExpenses
+    .filter((expense) => isSettlementExtraExpenseIncluded(expense) && hasUnlockedExtraExpenseDetails(expense, excludedDetailKeys))
+    .sort(compareExtraExpensesByRecentDate);
+}
+
+function getSelectableSettlementSources(excludedDetailKeys = new Set()) {
+  return [
+    ...getSelectableSettlementEvents(excludedDetailKeys).map((event) => ({ type: SETTLEMENT_SOURCE_EVENT, id: event.id, item: event })),
+    ...getSelectableExtraExpenses(excludedDetailKeys).map((expense) => ({
+      type: SETTLEMENT_SOURCE_EXTRA,
+      id: expense.id,
+      item: expense,
+    })),
+  ].sort(compareSettlementSourcesByRecentDate);
+}
+
+function syncSelectedSettlementSources(sources) {
+  const availableIds = new Set(sources.map((source) => settlementSourceKey(source.type, source.id)));
   const selectedIds = [...selectedSettlementEventIds].filter((id) => availableIds.has(id));
   selectedSettlementEventIds = selectedIds.length ? new Set(selectedIds) : new Set(availableIds);
 }
 
-function renderSettlementEventPicker(events, transfers, existingBatchCount = 0) {
-  const selectedCount = events.filter((event) => selectedSettlementEventIds.has(event.id)).length;
+function renderSettlementEventPicker(sources, transfers, existingBatchCount = 0) {
+  const selectedCount = sources.filter((source) => selectedSettlementEventIds.has(settlementSourceKey(source.type, source.id))).length;
   const actionTitle = existingBatchCount ? "建立另一個付款批次" : "建立付款批次";
   return `
     <section class="settlement-event-picker">
       <div class="settlement-event-picker-header">
         <div>
-          <strong>選擇這批要結算的場次</strong>
-          <span>已選 ${selectedCount}/${events.length} 場，只會用這些場次計算本批帳款。</span>
+          <strong>選擇這批要結算的項目</strong>
+          <span>已選 ${selectedCount}/${sources.length} 項，只會用這些項目計算本批帳款。</span>
         </div>
         <div class="settlement-event-picker-actions">
           <button class="ghost-button compact" type="button" data-select-settlement-events="all">全選</button>
@@ -989,10 +1197,10 @@ function renderSettlementEventPicker(events, transfers, existingBatchCount = 0) 
         </div>
       </div>
       <div class="settlement-event-options">
-        ${events.map(renderSettlementEventOption).join("")}
+        ${sources.map(renderSettlementSourceOption).join("")}
       </div>
       <div class="settlement-event-picker-footer">
-        <span>目前選了 ${selectedCount} 場，會算成 ${transfers.length} 筆轉帳；完成後只回寫這些場次。</span>
+        <span>目前選了 ${selectedCount} 項，會算成 ${transfers.length} 筆轉帳；完成後只回寫這些項目。</span>
         <button class="settlement-action-button settlement-action-primary" type="button" data-create-settlement-batch ${!transfers.length ? "disabled" : ""}>
           <span>${actionTitle}</span>
         </button>
@@ -1001,15 +1209,33 @@ function renderSettlementEventPicker(events, transfers, existingBatchCount = 0) 
   `;
 }
 
+function renderSettlementSourceOption(source) {
+  return source.type === SETTLEMENT_SOURCE_EXTRA ? renderSettlementExtraExpenseOption(source.item) : renderSettlementEventOption(source.item);
+}
+
 function renderSettlementEventOption(event) {
   const unpaidRows = event.participants.filter((person) => person.status === "unpaid" && person.name !== event.payer);
   return `
     <label class="settlement-event-option">
-      <input type="checkbox" data-settlement-event="${escapeHtml(event.id)}" ${selectedSettlementEventIds.has(event.id) ? "checked" : ""}>
+      <input type="checkbox" data-settlement-event="${escapeHtml(settlementSourceKey(SETTLEMENT_SOURCE_EVENT, event.id))}" ${selectedSettlementEventIds.has(settlementSourceKey(SETTLEMENT_SOURCE_EVENT, event.id)) ? "checked" : ""}>
       <span class="check-box" aria-hidden="true"></span>
       <span>
-        <strong>${escapeHtml(formatEventDate(event.date))} ${escapeHtml(formatEventTime(event.time))} ${escapeHtml(event.sport)}</strong>
+        <strong>場次 · ${escapeHtml(formatEventDate(event.date))} ${escapeHtml(formatEventTime(event.time))} ${escapeHtml(event.sport)}</strong>
         <small>付款人 ${escapeHtml(event.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(event))}</small>
+      </span>
+    </label>
+  `;
+}
+
+function renderSettlementExtraExpenseOption(expense) {
+  const unpaidRows = expense.participants.filter((person) => person.status === "unpaid" && person.name !== expense.payer);
+  return `
+    <label class="settlement-event-option">
+      <input type="checkbox" data-settlement-event="${escapeHtml(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id))}" ${selectedSettlementEventIds.has(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id)) ? "checked" : ""}>
+      <span class="check-box" aria-hidden="true"></span>
+      <span>
+        <strong>額外項目 · ${escapeHtml(formatEventDate(expense.date))} ${escapeHtml(expense.title)}</strong>
+        <small>付款人 ${escapeHtml(expense.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(expense))}</small>
       </span>
     </label>
   `;
@@ -1063,17 +1289,25 @@ function getBatchSourceEvents(batch) {
   return events;
 }
 
+function getBatchSourceExtraExpenses(batch) {
+  const expenseIds = batchSourceExtraExpenseIds(batch);
+  return expenseIds.map((expenseId) => state.extraExpenses.find((expense) => expense.id === expenseId)).filter(Boolean);
+}
+
 function renderBatchSourceEvents(batch, events = getBatchSourceEvents(batch)) {
   const eventIds = batchSourceEventIds(batch);
-  const missingCount = eventIds.length - events.length;
-  if (!eventIds.length) {
-    return `<div class="batch-source-event-strip">本批場次未保存，可從付款明細查看來源。</div>`;
+  const expenseIds = batchSourceExtraExpenseIds(batch);
+  const expenses = getBatchSourceExtraExpenses(batch);
+  const missingCount = eventIds.length + expenseIds.length - events.length - expenses.length;
+  if (!eventIds.length && !expenseIds.length) {
+    return `<div class="batch-source-event-strip">本批項目未保存，可從付款明細查看來源。</div>`;
   }
 
   return `
     <div class="batch-source-event-strip">
       ${events.map(renderBatchSourceEvent).join("")}
-      ${missingCount ? `<span class="batch-source-missing">另有 ${missingCount} 場已不存在</span>` : ""}
+      ${expenses.map(renderBatchSourceExtraExpense).join("")}
+      ${missingCount ? `<span class="batch-source-missing">另有 ${missingCount} 項已不存在</span>` : ""}
     </div>
   `;
 }
@@ -1086,7 +1320,27 @@ function batchSourceEventIds(batch) {
   return [
     ...new Set(
       (batch?.sourceDetailKeys || [])
-        .map((key) => String(key).split("::")[0])
+        .map((key) => {
+          const parts = String(key).split("::");
+          return parts[0] === SETTLEMENT_SOURCE_EXTRA ? "" : parts[0];
+        })
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function batchSourceExtraExpenseIds(batch) {
+  if (Array.isArray(batch?.sourceExtraExpenseIds) && batch.sourceExtraExpenseIds.length) {
+    return batch.sourceExtraExpenseIds;
+  }
+
+  return [
+    ...new Set(
+      (batch?.sourceDetailKeys || [])
+        .map((key) => {
+          const parts = String(key).split("::");
+          return parts[0] === SETTLEMENT_SOURCE_EXTRA ? parts[1] : "";
+        })
         .filter(Boolean),
     ),
   ];
@@ -1098,6 +1352,16 @@ function renderBatchSourceEvent(event) {
     <span class="batch-source-event">
       <strong>${escapeHtml(formatEventDate(event.date))} ${escapeHtml(formatEventTime(event.time))} ${escapeHtml(event.sport)}</strong>
       <small>付款人 ${escapeHtml(event.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(event))}</small>
+    </span>
+  `;
+}
+
+function renderBatchSourceExtraExpense(expense) {
+  const unpaidRows = expense.participants.filter((person) => person.status === "unpaid" && person.name !== expense.payer);
+  return `
+    <span class="batch-source-event">
+      <strong>${escapeHtml(formatEventDate(expense.date))} 額外項目：${escapeHtml(expense.title)}</strong>
+      <small>付款人 ${escapeHtml(expense.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(expense))}</small>
     </span>
   `;
 }
@@ -1175,7 +1439,7 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
 
   elements.settlementList.querySelectorAll("[data-select-settlement-events]").forEach((button) => {
     button.addEventListener("click", () => {
-      const ids = selectableEvents.map((event) => event.id);
+      const ids = selectableEvents.map((source) => settlementSourceKey(source.type, source.id));
       selectedSettlementEventIds = button.dataset.selectSettlementEvents === "all" ? new Set(ids) : new Set();
       renderSettlement();
     });
@@ -1185,7 +1449,7 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
     if (!selectedSettlementEventIds.size || !transfers.length) return;
     if (
       !confirm(
-        `要用目前選取的 ${selectedSettlementEventIds.size} 場建立付款批次嗎？會固定成 ${transfers.length} 筆轉帳，直到整批完成或重新計算。`,
+        `要用目前選取的 ${selectedSettlementEventIds.size} 項建立付款批次嗎？會固定成 ${transfers.length} 筆轉帳，直到整批完成或重新計算。`,
       )
     ) {
       return;
@@ -1396,25 +1660,36 @@ async function markTransferDetailsPaid(transfer) {
 }
 
 async function markTransfersDetailsPaid(transfers) {
-  const grouped = new Map();
+  const eventGrouped = new Map();
+  const expenseGrouped = new Map();
   transfers.forEach((transfer) => {
     transfer.fromDetails.forEach((detail) => {
-      if (!detail.eventId || !detail.personName) return;
-      addGroupedSettlementDetail(grouped, detail.eventId, detail.personName);
+      if (!detail.personName) return;
+      if (detail.sourceType === SETTLEMENT_SOURCE_EXTRA || detail.extraExpenseId) {
+        addGroupedSettlementDetail(expenseGrouped, detail.extraExpenseId, detail.personName);
+      } else {
+        if (!detail.eventId) return;
+        addGroupedSettlementDetail(eventGrouped, detail.eventId, detail.personName);
+      }
     });
   });
 
-  await updateGroupedSettlementDetails(grouped, "這批轉帳沒有可回寫的場次明細");
+  await updateGroupedSettlementDetails(eventGrouped, expenseGrouped, "這批轉帳沒有可回寫的明細");
 }
 
 async function markSettlementDetailKeysPaid(detailKeys) {
-  const grouped = new Map();
+  const eventGrouped = new Map();
+  const expenseGrouped = new Map();
   detailKeys.forEach((key) => {
-    const [eventId, personName] = String(key).split("::");
-    addGroupedSettlementDetail(grouped, eventId, personName);
+    const parts = String(key).split("::");
+    if (parts[0] === SETTLEMENT_SOURCE_EXTRA) {
+      addGroupedSettlementDetail(expenseGrouped, parts[1], parts[2]);
+      return;
+    }
+    addGroupedSettlementDetail(eventGrouped, parts[0], parts[1]);
   });
 
-  await updateGroupedSettlementDetails(grouped, "這個付款批次沒有可回寫的場次明細");
+  await updateGroupedSettlementDetails(eventGrouped, expenseGrouped, "這個付款批次沒有可回寫的明細");
 }
 
 function addGroupedSettlementDetail(grouped, eventId, personName) {
@@ -1423,17 +1698,24 @@ function addGroupedSettlementDetail(grouped, eventId, personName) {
   grouped.get(eventId).add(personName);
 }
 
-async function updateGroupedSettlementDetails(grouped, emptyMessage) {
-  if (!grouped.size) {
+async function updateGroupedSettlementDetails(eventGrouped, expenseGrouped, emptyMessage) {
+  if (!eventGrouped.size && !expenseGrouped.size) {
     throw new Error(emptyMessage);
   }
 
   const updates = [];
-  grouped.forEach((names, eventId) => {
+  eventGrouped.forEach((names, eventId) => {
     const eventItem = state.events.find((event) => event.id === eventId);
     if (!eventItem) return;
     const participants = eventItem.participants.map((person) => (names.has(person.name) ? { ...person, status: "paid" } : person));
     updates.push(updateEventParticipants(eventId, participants));
+  });
+  expenseGrouped.forEach((names, expenseId) => {
+    const expense = state.extraExpenses.find((item) => item.id === expenseId);
+    if (!expense) return;
+    const participants = expense.participants.map((person) => (names.has(person.name) ? { ...person, status: "paid" } : person));
+    const status = participants.every((person) => person.status === "paid") ? "settled" : "open";
+    updates.push(updateExtraExpenseParticipants(expenseId, participants, status));
   });
 
   await Promise.all(updates);
@@ -1910,7 +2192,10 @@ function calculateSettlement(excludedDetailKeys = new Set(), includedEventIds = 
   const balances = new Map();
   const payerEntries = new Map();
   const receiverEntries = new Map();
-  state.events.filter((event) => isSettlementEventIncluded(event, includedEventIds)).forEach((event) => {
+  const includedEvents = selectedSourceIdsByType(includedEventIds, SETTLEMENT_SOURCE_EVENT);
+  const includedExpenses = selectedSourceIdsByType(includedEventIds, SETTLEMENT_SOURCE_EXTRA);
+
+  state.events.filter((event) => isSettlementEventIncluded(event, includedEvents)).forEach((event) => {
     const share = perPerson(event);
     event.participants
       .filter((person) => person.status === "unpaid" && person.name !== event.payer)
@@ -1929,6 +2214,31 @@ function calculateSettlement(excludedDetailKeys = new Set(), includedEventIds = 
           eventId: event.id,
           personName: person.name,
           label: `${formatEventDate(event.date)} ${formatEventTime(event.time)} ${event.sport}，${person.name} 未付款`,
+        });
+      });
+  });
+
+  state.extraExpenses.filter((expense) => isSettlementExtraExpenseIncluded(expense, includedExpenses)).forEach((expense) => {
+    const share = perPerson(expense);
+    expense.participants
+      .filter((person) => person.status === "unpaid" && person.name !== expense.payer)
+      .forEach((person) => {
+        if (excludedDetailKeys.has(extraExpenseDetailKey(expense.id, person.name))) return;
+        balances.set(person.name, roundMoney((balances.get(person.name) || 0) - share));
+        balances.set(expense.payer, roundMoney((balances.get(expense.payer) || 0) + share));
+        addDetailEntry(payerEntries, person.name, {
+          amount: share,
+          sourceType: SETTLEMENT_SOURCE_EXTRA,
+          extraExpenseId: expense.id,
+          personName: person.name,
+          label: `${formatEventDate(expense.date)} 額外項目「${expense.title}」，原付款人 ${expense.payer}`,
+        });
+        addDetailEntry(receiverEntries, expense.payer, {
+          amount: share,
+          sourceType: SETTLEMENT_SOURCE_EXTRA,
+          extraExpenseId: expense.id,
+          personName: person.name,
+          label: `${formatEventDate(expense.date)} 額外項目「${expense.title}」，${person.name} 未付款`,
         });
       });
   });
@@ -1979,6 +2289,12 @@ function isSettlementEventIncluded(event, includedEventIds = null) {
   return event.participants.some((person) => person.status === "unpaid" && person.name !== event.payer);
 }
 
+function isSettlementExtraExpenseIncluded(expense, includedExpenseIds = null) {
+  if (expense.status === "settled" || isPendingPayer(expense.payer)) return false;
+  if (includedExpenseIds && !includedExpenseIds.has(expense.id)) return false;
+  return expense.participants.some((person) => person.status === "unpaid" && person.name !== expense.payer);
+}
+
 function addDetailEntry(map, name, entry) {
   if (!map.has(name)) map.set(name, []);
   map.get(name).push({ ...entry, remaining: entry.amount });
@@ -1999,7 +2315,14 @@ function consumeDetailEntries(entries, targetAmount) {
     const amount = roundMoney(Math.min(entry.remaining, remainingTarget));
     if (amount <= 0) continue;
 
-    consumed.push({ label: entry.label, amount, eventId: entry.eventId, personName: entry.personName });
+    consumed.push({
+      label: entry.label,
+      amount,
+      eventId: entry.eventId,
+      extraExpenseId: entry.extraExpenseId,
+      sourceType: entry.sourceType || SETTLEMENT_SOURCE_EVENT,
+      personName: entry.personName,
+    });
     entry.remaining = roundMoney(entry.remaining - amount);
     remainingTarget = roundMoney(remainingTarget - amount);
   }
@@ -2011,6 +2334,18 @@ function compareEventsByRecentDate(a, b) {
   const dateDiff = parseEventDate(b.date) - parseEventDate(a.date);
   if (dateDiff !== 0) return dateDiff;
   return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+}
+
+function compareExtraExpensesByRecentDate(a, b) {
+  const dateDiff = parseEventDate(b.date) - parseEventDate(a.date);
+  if (dateDiff !== 0) return dateDiff;
+  return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+}
+
+function compareSettlementSourcesByRecentDate(a, b) {
+  const dateDiff = parseEventDate(b.item.date) - parseEventDate(a.item.date);
+  if (dateDiff !== 0) return dateDiff;
+  return String(b.item.createdAt || "").localeCompare(String(a.item.createdAt || ""));
 }
 
 function isCompletedEvent(event) {
