@@ -869,9 +869,6 @@ button {
 .settlement-event-options {
   display: grid;
   gap: 8px;
-  max-height: 260px;
-  overflow: auto;
-  padding-right: 2px;
 }
 
 .settlement-event-picker-footer {
