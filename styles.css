@@ -905,6 +905,43 @@ button {
   cursor: pointer;
 }
 
+.settlement-extra-option {
+  grid-template-columns: minmax(0, 1fr) auto;
+  cursor: default;
+}
+
+.settlement-extra-option-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.settlement-extra-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settlement-extra-actions .ghost-button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--blue);
+  background: #f7fbff;
+  border: 1px solid #aacfe4;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.settlement-extra-actions .danger-inline-button {
+  color: var(--red);
+  background: #fff7f6;
+  border-color: #efc0bc;
+}
+
 .settlement-event-option input {
   position: absolute;
   opacity: 0;
@@ -2079,6 +2116,7 @@ select:focus {
   .extra-settlement-header,
   .settlement-event-picker-header,
   .settlement-event-picker-footer,
+  .settlement-extra-option,
   .payment-record-card,
   .payment-history-pagination,
   .settlement-summary,
@@ -2104,6 +2142,10 @@ select:focus {
 
   .settlement-batch-reset {
     justify-self: start;
+  }
+
+  .settlement-extra-actions {
+    justify-content: flex-start;
   }
 
   .person-actions {

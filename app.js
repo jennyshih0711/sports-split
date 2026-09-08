@@ -106,6 +106,7 @@ const elements = {
   closeExtraExpenseModalBtn: document.querySelector("#closeExtraExpenseModalBtn"),
   cancelExtraExpenseModalBtn: document.querySelector("#cancelExtraExpenseModalBtn"),
   extraExpenseForm: document.querySelector("#extraExpenseForm"),
+  saveExtraExpenseBtn: document.querySelector("#saveExtraExpenseBtn"),
   extraExpenseParticipantPicker: document.querySelector("#extraExpenseParticipantPicker"),
   eventForm: document.querySelector("#eventForm"),
   participantPicker: document.querySelector("#participantPicker"),
@@ -200,12 +201,17 @@ elements.personForm.addEventListener("submit", async (event) => {
 elements.extraExpenseForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(elements.extraExpenseForm);
+  const expenseId = clean(form.get("id"));
+  const originalExpense = state.extraExpenses.find((expense) => expense.id === expenseId);
   const payer = String(form.get("payer"));
   const participants = [...elements.extraExpenseParticipantPicker.querySelectorAll("[data-extra-expense-participant]")]
     .filter((checkbox) => checkbox.checked)
     .map((checkbox) => ({
       name: checkbox.dataset.extraExpenseParticipant,
-      status: checkbox.dataset.extraExpenseParticipant === payer ? "paid" : "unpaid",
+      status:
+        checkbox.dataset.extraExpenseParticipant === payer
+          ? "paid"
+          : originalExpense?.participants.find((person) => person.name === checkbox.dataset.extraExpenseParticipant)?.status || "unpaid",
     }));
 
   if (!participants.some((person) => person.name === payer)) {
@@ -224,13 +230,17 @@ elements.extraExpenseForm?.addEventListener("submit", async (event) => {
   };
 
   try {
-    await insertExtraExpense(expense);
+    if (expenseId) {
+      await updateExtraExpense(expenseId, expense);
+    } else {
+      await insertExtraExpense(expense);
+    }
     elements.extraExpenseForm.reset();
     closeExtraExpenseModal();
     await loadCloudData();
-    showNotice("額外分帳項目已新增，可在付款批次中一起結算。", "success");
+    showNotice(expenseId ? "額外分帳項目已更新。" : "額外分帳項目已新增，可在付款批次中一起結算。", "success");
   } catch (error) {
-    alert(`新增額外分帳失敗：${error.message}。如果尚未建立資料表，請先執行 database/create-extra-expenses.sql。`);
+    alert(`儲存額外分帳失敗：${error.message}。如果尚未建立資料表，請先執行 database/create-extra-expenses.sql。`);
   }
 });
 
@@ -613,10 +623,33 @@ async function insertExtraExpense(expense) {
   if (error) throw error;
 }
 
+async function updateExtraExpense(expenseId, expense) {
+  const status = expense.participants.every((person) => person.status === "paid") ? "settled" : "open";
+  const { error } = await db
+    .from("extra_expenses")
+    .update({
+      date: expense.date,
+      title: expense.title,
+      total: expense.total,
+      payer: expense.payer,
+      participants: expense.participants,
+      note: expense.note || "",
+      status,
+      settled_at: status === "settled" ? new Date().toISOString() : null,
+    })
+    .eq("id", expenseId);
+  if (error) throw error;
+}
+
 async function updateExtraExpenseParticipants(expenseId, participants, status = "open") {
   const changes = { participants, status };
   if (status === "settled") changes.settled_at = new Date().toISOString();
   const { error } = await db.from("extra_expenses").update(changes).eq("id", expenseId);
+  if (error) throw error;
+}
+
+async function deleteExtraExpense(expenseId) {
+  const { error } = await db.from("extra_expenses").delete().eq("id", expenseId);
   if (error) throw error;
 }
 
@@ -1025,10 +1058,19 @@ function setEventFormBusy(isBusy) {
   if (elements.cancelEventModalBtn) elements.cancelEventModalBtn.disabled = isBusy;
 }
 
-function openExtraExpenseModal() {
+function openExtraExpenseModal(expense = null) {
   if (!elements.extraExpenseModal || !elements.extraExpenseForm) return;
-  renderExtraExpenseFormControls();
-  elements.extraExpenseForm.elements.date.value = dateKey(new Date());
+  renderExtraExpenseFormControls(expense);
+  elements.extraExpenseForm.elements.id.value = expense?.id || "";
+  elements.extraExpenseForm.elements.date.value = expense?.date || dateKey(new Date());
+  elements.extraExpenseForm.elements.title.value = expense?.title || "";
+  elements.extraExpenseForm.elements.total.value = expense?.total || "";
+  elements.extraExpenseForm.elements.payer.value = expense?.payer || elements.extraExpenseForm.elements.payer.value;
+  elements.extraExpenseForm.elements.note.value = expense?.note || "";
+  if (elements.extraExpenseModal.querySelector("#extraExpenseModalTitle")) {
+    elements.extraExpenseModal.querySelector("#extraExpenseModalTitle").textContent = expense ? "編輯額外分帳" : "新增額外分帳";
+  }
+  if (elements.saveExtraExpenseBtn) elements.saveExtraExpenseBtn.textContent = expense ? "儲存修改" : "新增額外分帳";
   elements.extraExpenseModal.hidden = false;
   elements.extraExpenseForm.elements.title?.focus();
 }
@@ -1036,6 +1078,7 @@ function openExtraExpenseModal() {
 function closeExtraExpenseModal() {
   if (!elements.extraExpenseModal) return;
   elements.extraExpenseModal.hidden = true;
+  elements.extraExpenseForm?.reset();
 }
 
 function renderControls() {
@@ -1070,10 +1113,11 @@ function renderControls() {
   renderExtraExpenseFormControls();
 }
 
-function renderExtraExpenseFormControls() {
+function renderExtraExpenseFormControls(expense = null) {
   if (!elements.extraExpenseForm || !elements.extraExpenseParticipantPicker) return;
   const payerSelect = elements.extraExpenseForm.elements.payer;
-  const currentPayer = payerSelect.value;
+  const currentPayer = expense?.payer || payerSelect.value;
+  const selectedNames = new Set(expense ? expense.participants.map((person) => person.name) : personNames());
   payerSelect.innerHTML = personNames()
     .map((name) => `<option value="${escapeHtml(name)}" ${name === currentPayer ? "selected" : ""}>${escapeHtml(name)}</option>`)
     .join("");
@@ -1083,7 +1127,7 @@ function renderExtraExpenseFormControls() {
     .map(
       (name) => `
         <label class="extra-expense-person">
-          <input type="checkbox" data-extra-expense-participant="${escapeHtml(name)}" checked>
+          <input type="checkbox" data-extra-expense-participant="${escapeHtml(name)}" ${selectedNames.has(name) ? "checked" : ""}>
           <span class="check-box" aria-hidden="true"></span>
           <span>${escapeHtml(name)}</span>
         </label>
@@ -1230,14 +1274,20 @@ function renderSettlementEventOption(event) {
 function renderSettlementExtraExpenseOption(expense) {
   const unpaidRows = expense.participants.filter((person) => person.status === "unpaid" && person.name !== expense.payer);
   return `
-    <label class="settlement-event-option">
-      <input type="checkbox" data-settlement-event="${escapeHtml(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id))}" ${selectedSettlementEventIds.has(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id)) ? "checked" : ""}>
-      <span class="check-box" aria-hidden="true"></span>
-      <span>
-        <strong>額外項目 · ${escapeHtml(formatEventDate(expense.date))} ${escapeHtml(expense.title)}</strong>
-        <small>付款人 ${escapeHtml(expense.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(expense))}</small>
-      </span>
-    </label>
+    <div class="settlement-event-option settlement-extra-option">
+      <label class="settlement-extra-option-main">
+        <input type="checkbox" data-settlement-event="${escapeHtml(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id))}" ${selectedSettlementEventIds.has(settlementSourceKey(SETTLEMENT_SOURCE_EXTRA, expense.id)) ? "checked" : ""}>
+        <span class="check-box" aria-hidden="true"></span>
+        <span>
+          <strong>額外項目 · ${escapeHtml(formatEventDate(expense.date))} ${escapeHtml(expense.title)}</strong>
+          <small>付款人 ${escapeHtml(expense.payer)} · ${unpaidRows.length} 人未付款 · 每人 ${money(perPerson(expense))}${expense.note ? ` · ${escapeHtml(expense.note)}` : ""}</small>
+        </span>
+      </label>
+      <div class="settlement-extra-actions">
+        <button class="ghost-button compact" type="button" data-edit-extra-expense="${escapeHtml(expense.id)}">編輯</button>
+        <button class="ghost-button compact danger-inline-button" type="button" data-delete-extra-expense="${escapeHtml(expense.id)}">刪除</button>
+      </div>
+    </div>
   `;
 }
 
@@ -1464,6 +1514,31 @@ function bindSettlementControls(transfers, openBatches = [], selectableEvents = 
       alert(`建立付款批次失敗：${error.message}。如果尚未建立批次資料表，請先執行 database/create-settlement-batches.sql。`);
       event.currentTarget.disabled = false;
     }
+  });
+
+  elements.settlementList.querySelectorAll("[data-edit-extra-expense]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const expense = state.extraExpenses.find((item) => item.id === button.dataset.editExtraExpense);
+      if (!expense) return;
+      openExtraExpenseModal(expense);
+    });
+  });
+
+  elements.settlementList.querySelectorAll("[data-delete-extra-expense]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const expense = state.extraExpenses.find((item) => item.id === button.dataset.deleteExtraExpense);
+      if (!expense) return;
+      if (!confirm(`確定要刪除「${expense.title}」這筆額外分帳嗎？`)) return;
+      try {
+        button.disabled = true;
+        await deleteExtraExpense(expense.id);
+        await loadCloudData();
+        showNotice("額外分帳項目已刪除。", "success");
+      } catch (error) {
+        alert(`刪除額外分帳失敗：${error.message}`);
+        button.disabled = false;
+      }
+    });
   });
 
   openBatches.forEach((batch) => {

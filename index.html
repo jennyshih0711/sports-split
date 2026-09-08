@@ -69,6 +69,7 @@
             <button class="icon-button" type="button" id="closeExtraExpenseModalBtn" aria-label="關閉">×</button>
           </div>
           <form id="extraExpenseForm" class="compact-event-form">
+            <input name="id" type="hidden" />
             <div class="event-fields-row extra-expense-fields">
               <label>
               日期
@@ -97,7 +98,7 @@
             </div>
             <div class="modal-actions">
               <button class="ghost-panel-button" type="button" id="cancelExtraExpenseModalBtn">取消</button>
-              <button class="primary-button" type="submit">新增額外分帳</button>
+              <button class="primary-button" type="submit" id="saveExtraExpenseBtn">新增額外分帳</button>
             </div>
           </form>
         </section>
