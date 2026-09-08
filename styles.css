@@ -974,41 +974,58 @@ button {
   font-weight: 800;
 }
 
-.payment-record-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
-  align-items: start;
-  padding: 10px 12px;
-  background: #fbfcfb;
+.payment-history-table-wrap {
+  overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
+  background: #fbfcfb;
 }
 
-.payment-record-main {
-  min-width: 0;
+.payment-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
 }
 
-.payment-record-card .transfer-route {
-  font-size: 0.94rem;
+.payment-history-table th,
+.payment-history-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
 }
 
-.payment-record-card .event-meta {
-  margin-top: 2px;
+.payment-history-table th {
+  color: var(--muted);
+  background: #f2f6f4;
   font-size: 0.78rem;
+  font-weight: 900;
 }
 
-.payment-record-card .amount {
-  font-size: 1.08rem;
-  line-height: 1.2;
+.payment-history-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.payment-record-card .transfer-details {
-  padding-top: 0;
+.payment-history-table .amount-cell {
+  color: var(--red);
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.payment-record-card .transfer-details summary {
-  font-size: 0.8rem;
+.payment-table-details summary {
+  width: fit-content;
+  color: var(--blue);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.payment-table-details[open] {
+  min-width: min(620px, 74vw);
+}
+
+.payment-table-details .detail-grid {
+  margin-top: 8px;
 }
 
 .payment-history-pagination {
@@ -2114,7 +2131,6 @@ select:focus {
   .settlement-event-picker-header,
   .settlement-event-picker-footer,
   .settlement-extra-option,
-  .payment-record-card,
   .payment-history-pagination,
   .settlement-summary,
   .participant-row,
@@ -2143,6 +2159,55 @@ select:focus {
 
   .settlement-extra-actions {
     justify-content: flex-start;
+  }
+
+  .payment-history-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .payment-history-table,
+  .payment-history-table tbody,
+  .payment-history-table tr,
+  .payment-history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .payment-history-table thead {
+    display: none;
+  }
+
+  .payment-history-table tr {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: #fbfcfb;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .payment-history-table td {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 0;
+  }
+
+  .payment-history-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .payment-history-table .amount-cell {
+    text-align: left;
+  }
+
+  .payment-table-details[open] {
+    min-width: 0;
   }
 
   .person-actions {

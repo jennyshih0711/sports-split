@@ -1652,39 +1652,53 @@ function renderPaymentHistory() {
   const pagePayments = state.paymentHistory.slice(startIndex, startIndex + PAYMENT_HISTORY_PAGE_SIZE);
 
   elements.paymentHistoryList.innerHTML =
-    pagePayments
-    .map(
-      (payment) => `
-        <article class="payment-record-card">
-          <div class="payment-record-main">
-            <div class="transfer-route">
-              <span>${escapeHtml(payment.from)}</span>
-              <span class="arrow">→</span>
-              <span>${escapeHtml(payment.to)}</span>
-            </div>
-            <div class="event-meta">${escapeHtml(formatPaymentDate(payment.createdAt))}</div>
-          </div>
-          <div class="amount">${money(payment.amount)}</div>
-          <details class="transfer-details">
-            <summary>查看付款明細</summary>
-            <div class="detail-grid">
-              <div>
-                <h3>${escapeHtml(payment.from)} 的未付款來源</h3>
-                ${renderDetailList(payment.fromDetails)}
-              </div>
-              <div>
-                <h3>${escapeHtml(payment.to)} 的代墊來源</h3>
-                ${renderDetailList(payment.toDetails)}
-              </div>
-            </div>
-          </details>
-        </article>
-      `,
-    )
-      .join("") +
+    `
+      <div class="payment-history-table-wrap">
+        <table class="payment-history-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>付款人</th>
+              <th>收款人</th>
+              <th class="amount-cell">金額</th>
+              <th>明細</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pagePayments.map(renderPaymentHistoryRow).join("")}
+          </tbody>
+        </table>
+      </div>
+    ` +
     renderPaymentHistoryPagination(totalPages);
 
   bindPaymentHistoryPagination(totalPages);
+}
+
+function renderPaymentHistoryRow(payment) {
+  return `
+    <tr class="payment-history-row">
+      <td data-label="日期">${escapeHtml(formatPaymentDate(payment.createdAt))}</td>
+      <td data-label="付款人">${escapeHtml(payment.from)}</td>
+      <td data-label="收款人">${escapeHtml(payment.to)}</td>
+      <td data-label="金額" class="amount-cell">${money(payment.amount)}</td>
+      <td data-label="明細">
+        <details class="payment-table-details">
+          <summary>查看</summary>
+          <div class="detail-grid">
+            <div>
+              <h3>${escapeHtml(payment.from)} 的未付款來源</h3>
+              ${renderDetailList(payment.fromDetails)}
+            </div>
+            <div>
+              <h3>${escapeHtml(payment.to)} 的代墊來源</h3>
+              ${renderDetailList(payment.toDetails)}
+            </div>
+          </div>
+        </details>
+      </td>
+    </tr>
+  `;
 }
 
 function renderPaymentHistoryPagination(totalPages) {
