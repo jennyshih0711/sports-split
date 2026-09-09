@@ -161,6 +161,7 @@ elements.eventForm.addEventListener("submit", async (event) => {
     date: normalizeDateInput(form.get("date")),
     time: normalizeTimeRange(form.get("startTime"), form.get("endTime")),
     sport: clean(form.get("sport")),
+    location: clean(form.get("location")),
     total: Number(form.get("total")),
     payer,
     participants,
@@ -352,6 +353,7 @@ function makeEvent(date, time, sport, total, payer, rows) {
     date,
     time,
     sport,
+    location: "",
     total,
     payer,
     participants: rows.map(([name, status]) => ({ name, status })),
@@ -367,7 +369,7 @@ async function loadCloudData() {
     { data: batchRows, error: batchError },
   ] = await Promise.all([
     db.from("people").select("name,email").order("name", { ascending: true }),
-    db.from("events").select("id,date,time,sport,total,payer,participants,created_at").order("created_at", { ascending: false }),
+    db.from("events").select("id,date,time,sport,location,total,payer,participants,created_at").order("created_at", { ascending: false }),
     db.from("extra_expenses").select("id,date,title,total,payer,participants,note,status,created_at,settled_at").order("created_at", { ascending: false }),
     db
       .from("settlement_payments")
@@ -418,6 +420,7 @@ async function insertEvent(event) {
     date: event.date,
     time: event.time,
     sport: event.sport,
+    location: event.location || "",
     total: event.total,
     payer: event.payer,
     participants: event.participants,
@@ -450,6 +453,7 @@ async function sendCalendarInvite(event, attendeeRows = null, action = "invite")
       date: event.date,
       time: event.time,
       sport: event.sport,
+      location: event.location || "",
       total: event.total,
       payer: event.payer,
       participants: event.participants.map((participant) => participant.name),
@@ -485,6 +489,56 @@ async function sendAddedParticipantInvites(event, addedNames) {
   return sendCalendarInvite(event, attendeeRows, "addGuests");
 }
 
+async function updateCalendarInvite(originalEvent, updatedEvent) {
+  if (!calendarInviteWebhookUrl || !originalEvent) return { status: "disabled" };
+
+  const payload = {
+    token: calendarInviteToken,
+    ownerEmail: calendarOwnerEmail,
+    action: "update",
+    originalEvent: {
+      date: originalEvent.date,
+      time: originalEvent.time,
+      sport: originalEvent.sport,
+    },
+    event: {
+      date: updatedEvent.date,
+      time: updatedEvent.time,
+      sport: updatedEvent.sport,
+      location: updatedEvent.location || "",
+      total: updatedEvent.total,
+      payer: updatedEvent.payer,
+      participants: updatedEvent.participants.map((participant) => participant.name),
+    },
+  };
+
+  try {
+    await fetch(calendarInviteWebhookUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    });
+    return { status: "sent" };
+  } catch (error) {
+    console.warn("Calendar update request failed", error);
+    return { status: "failed", message: error.message };
+  }
+}
+
+function showCalendarUpdateResult(result) {
+  if (!result || result.status === "disabled") return;
+  if (result.status === "sent") {
+    showNotice("場次已更新，並已送出行事曆更新請求。", "success");
+    return;
+  }
+  if (result.status === "failed") {
+    showNotice(`場次已更新，但行事曆更新請求失敗：${result.message}`, "warning");
+  }
+}
+
 function showAddedParticipantInviteResult(result, addedNames) {
   if (!addedNames.length || !result || result.status === "disabled") return;
   if (result.status === "sent") {
@@ -512,6 +566,7 @@ async function cancelCalendarInvite(event) {
       date: event.date,
       time: event.time,
       sport: event.sport,
+      location: event.location || "",
       total: event.total,
       payer: event.payer,
       participants: event.participants.map((participant) => participant.name),
@@ -920,6 +975,7 @@ async function seedCloudData() {
     date: event.date,
     time: event.time,
     sport: event.sport,
+    location: event.location || "",
     total: event.total,
     payer: event.payer,
     participants: event.participants,
@@ -944,6 +1000,7 @@ function fromEventRow(row) {
     date: row.date,
     time: row.time,
     sport: row.sport,
+    location: row.location || "",
     total: Number(row.total || 0),
     payer: row.payer,
     participants: Array.isArray(row.participants) ? row.participants : [],
@@ -2014,7 +2071,7 @@ function renderCalendarDayDetails(eventMap) {
             <li>
               <strong>${escapeHtml(formatEventTime(event.time))}</strong>
               <span class="sport-tag ${getSportType(event.sport).className}"><span aria-hidden="true">${getSportType(event.sport).icon}</span>${escapeHtml(event.sport)}</span>
-              <span>${event.participants.length} 人 · 付款人 ${escapeHtml(event.payer)}</span>
+              <span>${event.participants.length} 人 · 付款人 ${escapeHtml(event.payer)}${event.location ? ` · 地點 ${escapeHtml(event.location)}` : ""}</span>
               <span class="calendar-detail-people">參加者：${escapeHtml(participantNamesText(event.participants))}</span>
             </li>
           `,
@@ -2085,7 +2142,7 @@ function renderHistory() {
                 <span class="sport-tag ${sportType.className}"><span aria-hidden="true">${sportType.icon}</span>${escapeHtml(event.sport)}</span>
               </div>
               <div class="event-meta">
-                總費用 ${money(event.total)} · ${event.participants.length} 人 · 每人 ${money(perPerson(event))} · 付款人 ${escapeHtml(event.payer)}
+                ${event.location ? `地點 ${escapeHtml(event.location)} · ` : ""}總費用 ${money(event.total)} · ${event.participants.length} 人 · 每人 ${money(perPerson(event))} · 付款人 ${escapeHtml(event.payer)}
               </div>
             </div>
             <div class="event-status-summary">
@@ -2118,6 +2175,7 @@ function renderHistory() {
               <label>開始時間<select data-edit-start-time>${hourOptions(timeRangeParts(event.time).startHour ?? 18)}</select></label>
               <label>結束時間<select data-edit-end-time>${hourOptions(timeRangeParts(event.time).endHour ?? 20)}</select></label>
               <label>項目<input data-edit-sport list="sportOptions" value="${escapeHtml(event.sport)}" /></label>
+              <label>地點<input data-edit-location value="${escapeHtml(event.location || "")}" placeholder="例如：逢甲球場" /></label>
               <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
               <label>付款人
                 <select data-edit-payer>
@@ -2204,6 +2262,7 @@ function renderHistory() {
         date: normalizeDateInput(row.querySelector("[data-edit-date]")?.value),
         time: normalizeTimeRange(row.querySelector("[data-edit-start-time]")?.value, row.querySelector("[data-edit-end-time]")?.value),
         sport: clean(row.querySelector("[data-edit-sport]")?.value),
+        location: clean(row.querySelector("[data-edit-location]")?.value),
         total: Number(row.querySelector("[data-edit-total]")?.value || 0),
         payer,
         participants,
@@ -2219,8 +2278,10 @@ function renderHistory() {
         const originalParticipantNames = new Set((originalEvent?.participants || []).map((person) => person.name));
         const addedParticipantNames = participants.map((person) => person.name).filter((name) => !originalParticipantNames.has(name));
         await updateEvent(button.dataset.saveEvent, changes);
+        const updateResult = await updateCalendarInvite(originalEvent, changes);
         const inviteResult = addedParticipantNames.length ? await sendAddedParticipantInvites(changes, addedParticipantNames) : null;
         await loadCloudData();
+        showCalendarUpdateResult(updateResult);
         showAddedParticipantInviteResult(inviteResult, addedParticipantNames);
       } catch (error) {
         alert(`更新場次失敗：${error.message}`);

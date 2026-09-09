@@ -1300,7 +1300,7 @@ button {
 
 .event-fields-row {
   display: grid;
-  grid-template-columns: minmax(146px, 1fr) minmax(84px, 0.55fr) minmax(84px, 0.55fr) minmax(120px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
   gap: 8px;
   align-items: end;
 }
@@ -1788,7 +1788,7 @@ select:focus {
 
 .event-edit-fields {
   display: grid;
-  grid-template-columns: minmax(146px, 1fr) minmax(84px, 0.55fr) minmax(84px, 0.55fr) minmax(120px, 0.9fr) minmax(104px, 0.7fr) minmax(126px, 0.9fr);
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
   gap: 8px;
   align-items: end;
 }

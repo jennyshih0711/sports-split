@@ -10,6 +10,12 @@ function doPost(e) {
 
     const action = payload.action || "invite";
     const eventData = payload.event || {};
+    const lookupData = action === "update" ? (payload.originalEvent || eventData) : eventData;
+    const lookupDate = parseDate(lookupData.date);
+    const lookupTime = parseTimeRange(lookupData.time);
+    const lookupStart = new Date(lookupDate.year, lookupDate.month - 1, lookupDate.day, lookupTime.startHour, lookupTime.startMinute);
+    const lookupEnd = new Date(lookupDate.year, lookupDate.month - 1, lookupDate.day, lookupTime.endHour, lookupTime.endMinute);
+    if (lookupEnd <= lookupStart) lookupEnd.setDate(lookupEnd.getDate() + 1);
     const date = parseDate(eventData.date);
     const time = parseTimeRange(eventData.time);
     const start = new Date(date.year, date.month - 1, date.day, time.startHour, time.startMinute);
@@ -17,8 +23,9 @@ function doPost(e) {
     if (end <= start) end.setDate(end.getDate() + 1);
 
     const title = calendarTitle(eventData.sport);
+    const lookupTitle = calendarTitle(lookupData.sport);
     const calendar = CalendarApp.getDefaultCalendar();
-    const existingEvent = findExistingEvent(calendar, title, start, end);
+    const existingEvent = findExistingEvent(calendar, lookupTitle, lookupStart, lookupEnd);
 
     if (action === "cancel") {
       if (!existingEvent) {
@@ -33,23 +40,28 @@ function doPost(e) {
       return jsonResponse({ ok: true, skipped: true, reason: "Calendar event not found", action: "not_found" });
     }
 
+    const location = eventData.location || eventLocation(eventData.sport);
+    const description = calendarDescription(eventData, location);
+
+    if (action === "update") {
+      if (!existingEvent) {
+        return jsonResponse({ ok: true, skipped: true, reason: "Calendar event not found", action: "not_found" });
+      }
+
+      existingEvent.setTitle(title);
+      existingEvent.setTime(start, end);
+      existingEvent.setLocation(location);
+      existingEvent.setDescription(description);
+
+      return jsonResponse({ ok: true, id: existingEvent.getId(), title, location, action: "updated" });
+    }
+
     const attendees = Array.isArray(eventData.attendees) ? eventData.attendees : [];
     const guestEmails = attendees.map((person) => person.email).filter(Boolean);
 
     if (!guestEmails.length) {
       return jsonResponse({ ok: true, skipped: true, reason: "No attendee emails" });
     }
-
-    const location = eventLocation(eventData.sport);
-    const description = [
-      `項目：${eventData.sport || ""}`,
-      `時間：${eventData.time || ""}`,
-      `費用總計：${eventData.total || 0}`,
-      `付款人：${eventData.payer || ""}`,
-      `參加者：${(eventData.participants || []).join("、")}`,
-      "",
-      "此活動由運動分帳網站自動建立。",
-    ].join("\n");
 
     const calendarEvent = existingEvent || calendar.createEvent(title, start, end, {
       location,
@@ -93,6 +105,19 @@ function addMissingGuests(calendarEvent, guestEmails) {
       calendarEvent.addGuest(email);
     }
   });
+}
+
+function calendarDescription(eventData, location) {
+  return [
+    `項目：${eventData.sport || ""}`,
+    `地點：${location || ""}`,
+    `時間：${eventData.time || ""}`,
+    `費用總計：${eventData.total || 0}`,
+    `付款人：${eventData.payer || ""}`,
+    `參加者：${(eventData.participants || []).join("、")}`,
+    "",
+    "此活動由運動分帳網站自動建立。",
+  ].join("\n");
 }
 
 function calendarTitle(sport) {
