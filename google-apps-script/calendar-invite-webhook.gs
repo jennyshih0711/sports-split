@@ -41,17 +41,13 @@ function doPost(e) {
     }
 
     const location = eventData.location || eventLocation(eventData.sport);
-    const description = calendarDescription(eventData, location);
 
     if (action === "update") {
       if (!existingEvent) {
         return jsonResponse({ ok: true, skipped: true, reason: "Calendar event not found", action: "not_found" });
       }
 
-      existingEvent.setTitle(title);
-      existingEvent.setTime(start, end);
-      existingEvent.setLocation(location);
-      existingEvent.setDescription(description);
+      updateExistingEvent(existingEvent, title, start, end, location);
 
       return jsonResponse({ ok: true, id: existingEvent.getId(), title, location, action: "updated" });
     }
@@ -65,7 +61,7 @@ function doPost(e) {
 
     const calendarEvent = existingEvent || calendar.createEvent(title, start, end, {
       location,
-      description,
+      description: calendarDescription(eventData, location),
       guests: guestEmails.join(","),
       sendInvites: true,
     });
@@ -105,6 +101,23 @@ function addMissingGuests(calendarEvent, guestEmails) {
       calendarEvent.addGuest(email);
     }
   });
+}
+
+function updateExistingEvent(calendarEvent, title, start, end, location) {
+  if (calendarEvent.getTitle() !== title) {
+    calendarEvent.setTitle(title);
+  }
+
+  if (
+    calendarEvent.getStartTime().getTime() !== start.getTime() ||
+    calendarEvent.getEndTime().getTime() !== end.getTime()
+  ) {
+    calendarEvent.setTime(start, end);
+  }
+
+  if ((calendarEvent.getLocation() || "") !== (location || "")) {
+    calendarEvent.setLocation(location || "");
+  }
 }
 
 function calendarDescription(eventData, location) {
