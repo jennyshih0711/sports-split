@@ -9,6 +9,7 @@ const PAYMENT_HISTORY_PAGE_SIZE = 20;
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
+const defaultLocationOptions = ["GooDink匹克球俱樂部", "匹克王", "朝馬運動中心"];
 
 const seedData = {
   people: ["elmo", "乃哥", "卡森", "施", "汪", "生哥", "秉樺", "芮瑜", "許", "高"],
@@ -127,6 +128,7 @@ const elements = {
   cancelEventModalBtn: document.querySelector("#cancelEventModalBtn"),
   sportFilter: document.querySelector("#sportFilter"),
   sportOptions: document.querySelector("#sportOptions"),
+  locationOptions: document.querySelector("#locationOptions"),
   resetDemoBtn: document.querySelector("#resetDemoBtn"),
   clearAllBtn: document.querySelector("#clearAllBtn"),
   tabButtons: document.querySelectorAll(".tab-button"),
@@ -1148,6 +1150,12 @@ function renderControls() {
   elements.sportOptions.innerHTML = getSports()
     .map((sport) => `<option value="${escapeHtml(sport)}"></option>`)
     .join("");
+
+  if (elements.locationOptions) {
+    elements.locationOptions.innerHTML = getLocationOptions()
+      .map((location) => `<option value="${escapeHtml(location)}"></option>`)
+      .join("");
+  }
 
   fillHourSelect(elements.eventForm.elements.startTime, "18");
   fillHourSelect(elements.eventForm.elements.endTime, "20");
@@ -2175,7 +2183,7 @@ function renderHistory() {
               <label>開始時間<select data-edit-start-time>${hourOptions(timeRangeParts(event.time).startHour ?? 18)}</select></label>
               <label>結束時間<select data-edit-end-time>${hourOptions(timeRangeParts(event.time).endHour ?? 20)}</select></label>
               <label>項目<input data-edit-sport list="sportOptions" value="${escapeHtml(event.sport)}" /></label>
-              <label>地點<input data-edit-location value="${escapeHtml(event.location || "")}" placeholder="例如：逢甲球場" /></label>
+              <label>地點<input data-edit-location list="locationOptions" value="${escapeHtml(event.location || "")}" placeholder="選擇或輸入地點" /></label>
               <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
               <label>付款人
                 <select data-edit-payer>
@@ -2646,6 +2654,12 @@ function money(value) {
 
 function getSports() {
   return [...new Set(state.events.map((event) => event.sport).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+}
+
+function getLocationOptions() {
+  return [...new Set(defaultLocationOptions.concat(state.events.map((event) => clean(event.location))).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "zh-Hant"),
+  );
 }
 
 function escapeHtml(value) {
