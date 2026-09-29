@@ -129,7 +129,9 @@ const elements = {
   cancelEventModalBtn: document.querySelector("#cancelEventModalBtn"),
   sportFilter: document.querySelector("#sportFilter"),
   sportSelect: document.querySelector("#sportSelect"),
+  sportCustom: document.querySelector("#sportCustom"),
   locationSelect: document.querySelector("#locationSelect"),
+  locationCustom: document.querySelector("#locationCustom"),
   sportOptions: document.querySelector("#sportOptions"),
   locationOptions: document.querySelector("#locationOptions"),
   resetDemoBtn: document.querySelector("#resetDemoBtn"),
@@ -139,6 +141,17 @@ const elements = {
 };
 
 initApp();
+
+function syncCustomOption(select, customInput) {
+  if (!select || !customInput) return;
+  const isCustom = select.value === "__custom__";
+  customInput.hidden = !isCustom;
+  customInput.required = isCustom;
+  if (isCustom) customInput.focus();
+}
+
+elements.sportSelect?.addEventListener("change", () => syncCustomOption(elements.sportSelect, elements.sportCustom));
+elements.locationSelect?.addEventListener("change", () => syncCustomOption(elements.locationSelect, elements.locationCustom));
 
 elements.eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -165,8 +178,8 @@ elements.eventForm.addEventListener("submit", async (event) => {
   const newEvent = {
     date: normalizeDateInput(form.get("date")),
     time: normalizeTimeRange(form.get("startTime"), form.get("endTime")),
-    sport: clean(form.get("sport")),
-    location: clean(form.get("location")),
+    sport: clean(form.get("sport") === "__custom__" ? form.get("sportCustom") : form.get("sport")),
+    location: clean(form.get("location") === "__custom__" ? form.get("locationCustom") : form.get("location")),
     total: Number(form.get("total")),
     payer,
     participants,
@@ -1101,6 +1114,8 @@ function showView(viewId) {
 
 function openEventModal() {
   if (!elements.eventModal) return;
+  syncCustomOption(elements.sportSelect, elements.sportCustom);
+  syncCustomOption(elements.locationSelect, elements.locationCustom);
   elements.eventModal.hidden = false;
   elements.eventForm.elements.date?.focus();
 }
@@ -1155,8 +1170,9 @@ function renderControls() {
     const selectedSport = elements.sportSelect.value;
     elements.sportSelect.innerHTML = `<option value="" disabled>選擇項目</option>${sports
       .map((sport) => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`)
-      .join("")}`;
+      .join("")}<option value="__custom__">其他（自行輸入）</option>`;
     elements.sportSelect.value = sports.includes(selectedSport) ? selectedSport : "";
+    syncCustomOption(elements.sportSelect, elements.sportCustom);
   }
   if (elements.sportOptions) {
     elements.sportOptions.innerHTML = sports
@@ -1169,8 +1185,9 @@ function renderControls() {
     const selectedLocation = elements.locationSelect.value;
     elements.locationSelect.innerHTML = `<option value="">選擇地點</option>${locations
       .map((location) => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`)
-      .join("")}`;
+      .join("")}<option value="__custom__">其他（自行輸入）</option>`;
     elements.locationSelect.value = locations.includes(selectedLocation) ? selectedLocation : "";
+    syncCustomOption(elements.locationSelect, elements.locationCustom);
   }
   if (elements.locationOptions) {
     elements.locationOptions.innerHTML = locations
