@@ -9,6 +9,7 @@ const PAYMENT_HISTORY_PAGE_SIZE = 20;
 const calendarInviteWebhookUrl = "https://script.google.com/macros/s/AKfycbyIAmaN4JA1CUropSrBlRhdVfH-Xu8VCE5mULFk5GMy9eEgROCexuTODdxVMZA9vlaoTA/exec";
 const calendarInviteToken = "sports-split-calendar-invite-v1";
 const calendarOwnerEmail = "jennyshih@geosense.tw";
+const defaultSportOptions = ["匹克球", "羽球"];
 const defaultLocationOptions = ["GooDink匹克球俱樂部", "匹克王", "朝馬運動中心"];
 
 const seedData = {
@@ -127,6 +128,8 @@ const elements = {
   closeEventModalBtn: document.querySelector("#closeEventModalBtn"),
   cancelEventModalBtn: document.querySelector("#cancelEventModalBtn"),
   sportFilter: document.querySelector("#sportFilter"),
+  sportSelect: document.querySelector("#sportSelect"),
+  locationSelect: document.querySelector("#locationSelect"),
   sportOptions: document.querySelector("#sportOptions"),
   locationOptions: document.querySelector("#locationOptions"),
   resetDemoBtn: document.querySelector("#resetDemoBtn"),
@@ -1147,12 +1150,30 @@ function renderControls() {
     ...personNames().map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
   ].join("");
 
-  elements.sportOptions.innerHTML = getSports()
-    .map((sport) => `<option value="${escapeHtml(sport)}"></option>`)
-    .join("");
+  const sports = getSports();
+  if (elements.sportSelect) {
+    const selectedSport = elements.sportSelect.value;
+    elements.sportSelect.innerHTML = `<option value="" disabled>選擇項目</option>${sports
+      .map((sport) => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`)
+      .join("")}`;
+    elements.sportSelect.value = sports.includes(selectedSport) ? selectedSport : "";
+  }
+  if (elements.sportOptions) {
+    elements.sportOptions.innerHTML = sports
+      .map((sport) => `<option value="${escapeHtml(sport)}"></option>`)
+      .join("");
+  }
 
+  const locations = getLocationOptions();
+  if (elements.locationSelect) {
+    const selectedLocation = elements.locationSelect.value;
+    elements.locationSelect.innerHTML = `<option value="">選擇地點</option>${locations
+      .map((location) => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`)
+      .join("")}`;
+    elements.locationSelect.value = locations.includes(selectedLocation) ? selectedLocation : "";
+  }
   if (elements.locationOptions) {
-    elements.locationOptions.innerHTML = getLocationOptions()
+    elements.locationOptions.innerHTML = locations
       .map((location) => `<option value="${escapeHtml(location)}"></option>`)
       .join("");
   }
@@ -2653,7 +2674,9 @@ function money(value) {
 }
 
 function getSports() {
-  return [...new Set(state.events.map((event) => event.sport).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  return [...new Set(defaultSportOptions.concat(state.events.map((event) => event.sport)).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "zh-Hant"),
+  );
 }
 
 function getLocationOptions() {

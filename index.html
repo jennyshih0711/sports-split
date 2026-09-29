@@ -174,12 +174,16 @@
               </label>
               <label>
               項目
-              <input name="sport" list="sportOptions" placeholder="匹克球" required />
+              <select name="sport" id="sportSelect" required aria-label="選擇項目">
+                <option value="" selected disabled>選擇項目</option>
+              </select>
               <datalist id="sportOptions"></datalist>
               </label>
               <label>
               地點
-              <input name="location" list="locationOptions" placeholder="選擇或輸入地點" />
+              <select name="location" id="locationSelect" aria-label="選擇地點">
+                <option value="" selected>選擇地點</option>
+              </select>
               <datalist id="locationOptions"></datalist>
               </label>
               <label>
