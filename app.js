@@ -185,6 +185,11 @@ elements.eventForm.addEventListener("submit", async (event) => {
     participants,
   };
 
+  if (!newEvent.time) {
+    alert("請填寫有效的開始時間與結束時間");
+    return;
+  }
+
   try {
     setEventFormBusy(true);
     await upsertPeople(participants.map((person) => person.name).concat(isPendingPayer(payer) ? [] : payer));
@@ -1195,9 +1200,6 @@ function renderControls() {
       .join("");
   }
 
-  fillHourSelect(elements.eventForm.elements.startTime, "18");
-  fillHourSelect(elements.eventForm.elements.endTime, "20");
-
   const selectedFilter = elements.sportFilter.value || "all";
   elements.sportFilter.innerHTML = `<option value="all">全部項目</option>${getSports()
     .map((sport) => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`)
@@ -1237,20 +1239,6 @@ function renderExtraExpenseFormControls(expense = null) {
       `,
     )
     .join("");
-}
-
-function fillHourSelect(select, fallbackHour) {
-  if (!select) return;
-  const selected = select.value || fallbackHour;
-  select.innerHTML = hourOptions(selected);
-}
-
-function hourOptions(selectedHour) {
-  const selected = Number(selectedHour);
-  return Array.from({ length: 24 }, (_, hour) => {
-    const value = String(hour).padStart(2, "0");
-    return `<option value="${value}" ${hour === selected ? "selected" : ""}>${hour}</option>`;
-  }).join("");
 }
 
 function renderSettlement() {
@@ -2218,8 +2206,8 @@ function renderHistory() {
           <div class="event-edit-panel" hidden>
             <div class="event-edit-fields">
               <label>日期<input type="date" data-edit-date value="${escapeHtml(normalizeDateInput(event.date))}" /></label>
-              <label>開始時間<select data-edit-start-time>${hourOptions(timeRangeParts(event.time).startHour ?? 18)}</select></label>
-              <label>結束時間<select data-edit-end-time>${hourOptions(timeRangeParts(event.time).endHour ?? 20)}</select></label>
+              <label>開始時間<input data-edit-start-time type="time" step="60" value="${timeRangeParts(event.time).start || "18:00"}" required></label>
+              <label>結束時間<input data-edit-end-time type="time" step="60" value="${timeRangeParts(event.time).end || "20:00"}" required></label>
               <label>項目<input data-edit-sport list="sportOptions" value="${escapeHtml(event.sport)}" /></label>
               <label>地點<input data-edit-location list="locationOptions" value="${escapeHtml(event.location || "")}" placeholder="選擇或輸入地點" /></label>
               <label>費用總計<input type="number" min="0" step="1" data-edit-total value="${escapeHtml(event.total)}" /></label>
@@ -2643,14 +2631,16 @@ function normalizeTimeRange(start, end) {
 function normalizeTime(value) {
   const text = clean(value);
   const match = text.match(/^(\d{1,2})(?::?(\d{2}))?$/);
-  if (!match) return text;
-  const hour = Math.min(23, Math.max(0, Number(match[1])));
-  return String(hour).padStart(2, "0");
+  if (!match) return "";
+  const hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  if (hour > 23 || minute > 59) return "";
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 function formatEventTime(value) {
   const range = timeRangeParts(value);
-  if (range.start && range.end) return `${Number(range.start)}-${Number(range.end)}`;
+  if (range.start && range.end) return `${range.start}-${range.end}`;
   return clean(value);
 }
 
@@ -2659,13 +2649,13 @@ function timeRangeParts(value) {
   const parts = text.match(/(\d{1,2})(?::?(\d{2}))?\s*[-~–—到至]\s*(\d{1,2})(?::?(\d{2}))?/);
   if (!parts) return { start: "", end: "", startHour: null, endHour: null, startMinutes: null, endMinutes: null };
 
-  const start = normalizeTime(parts[1]);
-  const end = normalizeTime(parts[3]);
+  const start = normalizeTime(`${parts[1]}:${parts[2] || "00"}`);
+  const end = normalizeTime(`${parts[3]}:${parts[4] || "00"}`);
   return {
     start,
     end,
-    startHour: Number(start),
-    endHour: Number(end),
+    startHour: start ? Number(parts[1]) : null,
+    endHour: end ? Number(parts[3]) : null,
     startMinutes: timeToMinutes(start),
     endMinutes: timeToMinutes(end),
   };
