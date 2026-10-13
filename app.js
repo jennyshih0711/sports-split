@@ -169,9 +169,6 @@ elements.eventForm.addEventListener("submit", async (event) => {
     }));
 
   const payer = String(form.get("payer"));
-  if (!isPendingPayer(payer) && !participants.some((person) => person.name === payer)) {
-    participants.unshift({ name: payer, status: "paid" });
-  }
 
   if (participants.length === 0) return;
 
@@ -238,9 +235,6 @@ elements.extraExpenseForm?.addEventListener("submit", async (event) => {
           : originalExpense?.participants.find((person) => person.name === checkbox.dataset.extraExpenseParticipant)?.status || "unpaid",
     }));
 
-  if (!participants.some((person) => person.name === payer)) {
-    participants.unshift({ name: payer, status: "paid" });
-  }
 
   if (!participants.length) return;
 
@@ -2284,9 +2278,6 @@ function renderHistory() {
           return { name, status: !isPendingPayer(payer) && name === payer ? "paid" : status };
         });
 
-      if (payer && !isPendingPayer(payer) && !participants.some((person) => person.name === payer)) {
-        participants.unshift({ name: payer, status: "paid" });
-      }
       if (!participants.length) {
         alert("至少要選擇一位參加者");
         return;
