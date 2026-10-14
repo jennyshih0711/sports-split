@@ -218,7 +218,7 @@ button {
 
 .section-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 14px 0;
   padding: 6px;
@@ -2223,4 +2223,34 @@ select:focus {
   .person-actions button {
     flex: 1;
   }
+}
+
+.other-expense-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.expense-status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.expense-status-tag.open {
+  background: #fff4d6;
+  color: #9a6400;
+}
+
+.expense-status-tag.settled {
+  background: #e3f5e8;
+  color: #23733a;
+}
+
+.other-expense-card .status-text {
+  font-size: 13px;
+  padding: 2px 6px;
 }

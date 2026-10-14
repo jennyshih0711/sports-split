@@ -110,6 +110,7 @@ const elements = {
   extraExpenseForm: document.querySelector("#extraExpenseForm"),
   saveExtraExpenseBtn: document.querySelector("#saveExtraExpenseBtn"),
   extraExpenseParticipantPicker: document.querySelector("#extraExpenseParticipantPicker"),
+  otherExpenseList: document.querySelector("#otherExpenseList"),
   eventForm: document.querySelector("#eventForm"),
   participantPicker: document.querySelector("#participantPicker"),
   participantTemplate: document.querySelector("#participantTemplate"),
@@ -256,7 +257,7 @@ elements.extraExpenseForm?.addEventListener("submit", async (event) => {
     elements.extraExpenseForm.reset();
     closeExtraExpenseModal();
     await loadCloudData();
-    showNotice(expenseId ? "額外分帳項目已更新。" : "額外分帳項目已新增，可在付款批次中一起結算。", "success");
+    showNotice(expenseId ? "其他費用已更新。" : "其他費用已新增，可在付款批次中一起結算。", "success");
   } catch (error) {
     alert(`儲存額外分帳失敗：${error.message}。如果尚未建立資料表，請先執行 database/create-extra-expenses.sql。`);
   }
@@ -264,7 +265,7 @@ elements.extraExpenseForm?.addEventListener("submit", async (event) => {
 
 elements.sportFilter.addEventListener("change", renderHistory);
 
-elements.openExtraExpenseModalBtn?.addEventListener("click", openExtraExpenseModal);
+elements.openExtraExpenseModalBtn?.addEventListener("click", () => openExtraExpenseModal());
 elements.closeExtraExpenseModalBtn?.addEventListener("click", closeExtraExpenseModal);
 elements.cancelExtraExpenseModalBtn?.addEventListener("click", closeExtraExpenseModal);
 elements.extraExpenseModal?.addEventListener("click", (event) => {
@@ -1100,6 +1101,99 @@ function render() {
   renderPeople();
   renderCalendar();
   renderHistory();
+  renderOtherExpenses();
+}
+
+function renderOtherExpenses() {
+  const list = elements.otherExpenseList;
+  if (!list) return;
+  if (state.extraExpenseError) {
+    list.innerHTML = `<div class="empty-state">其他費用資料表尚未建立，請先執行 database/create-extra-expenses.sql</div>`;
+    return;
+  }
+  const expenses = state.extraExpenses
+    .slice()
+    .sort(compareExtraExpensesByRecentDate);
+
+  if (!expenses.length) {
+    list.innerHTML = `<div class="empty-state">沒有符合的其他費用</div>`;
+    return;
+  }
+
+  list.innerHTML = expenses
+    .map((expense) => {
+      const isSettled = expense.status === "settled";
+      const paidCount = expense.participants.filter((person) => person.status === "paid").length;
+      const unpaidCount = expense.participants.length - paidCount;
+      return `
+        <article class="event-card other-expense-card ${isSettled ? "is-settled" : ""}">
+          <div class="event-view">
+            <div class="event-flag">
+              <span class="expense-status-tag ${isSettled ? "settled" : "open"}">${isSettled ? "已結清" : "進行中"}</span>
+            </div>
+            <div class="event-main">
+              <div class="event-title">
+                <span class="event-date">${escapeHtml(formatEventDate(expense.date))}</span>
+                <span class="event-time">${escapeHtml(expense.title)}</span>
+              </div>
+              <div class="event-meta">
+                總費用 ${money(expense.total)} · ${expense.participants.length} 人 · 每人 ${money(perPerson(expense))} · 付款人 ${escapeHtml(expense.payer)}${
+                  expense.note ? ` · ${escapeHtml(expense.note)}` : ""
+                }${isSettled && expense.settledAt ? ` · 結清於 ${escapeHtml(formatPaymentDate(expense.settledAt))}` : ""}
+              </div>
+            </div>
+            <div class="event-status-summary">
+              <span class="status-count paid">${paidCount} 已付款</span>
+              <span class="status-count unpaid">${unpaidCount} 未付款</span>
+            </div>
+            <div class="participant-editor">
+              ${expense.participants
+                .map(
+                  (person) => `
+                    <span class="status-control ${person.status === "paid" ? "is-paid" : "is-unpaid"} ${person.name === expense.payer ? "is-payer" : ""}">
+                      <span>${escapeHtml(person.name)}</span>
+                      <span class="status-text">${person.status === "paid" ? "已付款" : "未付款"}</span>
+                    </span>
+                  `,
+                )
+                .join("")}
+            </div>
+            <div class="event-actions">
+              ${
+                isSettled
+                  ? ""
+                  : `<button class="edit-event-button" type="button" data-edit-other-expense="${escapeHtml(expense.id)}">編輯</button>
+                     <button type="button" data-delete-other-expense="${escapeHtml(expense.id)}">刪除</button>`
+              }
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll("[data-edit-other-expense]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const expense = state.extraExpenses.find((item) => item.id === button.dataset.editOtherExpense);
+      if (expense) openExtraExpenseModal(expense);
+    });
+  });
+
+  list.querySelectorAll("[data-delete-other-expense]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const expense = state.extraExpenses.find((item) => item.id === button.dataset.deleteOtherExpense);
+      if (!expense || !confirm(`確定要刪除「${expense.title}」這筆其他費用嗎？`)) return;
+      try {
+        button.disabled = true;
+        await deleteExtraExpense(expense.id);
+        await loadCloudData();
+        showNotice("其他費用已刪除。", "success");
+      } catch (error) {
+        alert(`刪除其他費用失敗：${error.message}`);
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function showView(viewId) {
@@ -1144,7 +1238,7 @@ function openExtraExpenseModal(expense = null) {
   elements.extraExpenseForm.elements.payer.value = expense?.payer || elements.extraExpenseForm.elements.payer.value;
   elements.extraExpenseForm.elements.note.value = expense?.note || "";
   if (elements.extraExpenseModal.querySelector("#extraExpenseModalTitle")) {
-    elements.extraExpenseModal.querySelector("#extraExpenseModalTitle").textContent = expense ? "編輯額外分帳" : "新增額外分帳";
+    elements.extraExpenseModal.querySelector("#extraExpenseModalTitle").textContent = expense ? "編輯其他費用" : "新增其他費用";
   }
   if (elements.saveExtraExpenseBtn) elements.saveExtraExpenseBtn.textContent = expense ? "儲存修改" : "新增額外分帳";
   elements.extraExpenseModal.hidden = false;

@@ -20,6 +20,7 @@
       <nav class="section-tabs" aria-label="功能分區">
         <button class="tab-button active" type="button" data-view="settlementView"><span aria-hidden="true">💸</span> 誰要付錢</button>
         <button class="tab-button" type="button" data-view="eventsView"><span aria-hidden="true">📅</span> 場次紀錄</button>
+        <button class="tab-button" type="button" data-view="otherExpensesView"><span aria-hidden="true">🧾</span> 其他費用</button>
         <button class="tab-button" type="button" data-view="peopleView"><span aria-hidden="true">👥</span> 人員設定</button>
       </nav>
 
@@ -31,11 +32,10 @@
               <h2>最後需要轉帳</h2>
             </div>
             <div class="settlement-header-actions">
-              <button class="primary-button" type="button" id="openExtraExpenseModalBtn">新增額外分帳</button>
               <span class="pill" id="settlementCount">0 筆</span>
             </div>
           </div>
-          <p class="settlement-note">付款金額會結算已完成場次與額外分帳項目</p>
+          <p class="settlement-note">付款金額會結算已完成場次與其他費用</p>
           <div id="settlementList" class="settlement-list"></div>
           <div class="settlement-summary">
             <article>
@@ -63,8 +63,8 @@
         <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="extraExpenseModalTitle">
           <div class="modal-header">
             <div>
-              <p class="section-kicker">額外分帳</p>
-              <h2 id="extraExpenseModalTitle">新增額外分帳</h2>
+              <p class="section-kicker">其他費用</p>
+              <h2 id="extraExpenseModalTitle">新增其他費用</h2>
             </div>
             <button class="icon-button" type="button" id="closeExtraExpenseModalBtn" aria-label="關閉">×</button>
           </div>
@@ -98,7 +98,7 @@
             </div>
             <div class="modal-actions">
               <button class="ghost-panel-button" type="button" id="cancelExtraExpenseModalBtn">取消</button>
-              <button class="primary-button" type="submit" id="saveExtraExpenseBtn">新增額外分帳</button>
+              <button class="primary-button" type="submit" id="saveExtraExpenseBtn">儲存</button>
             </div>
           </form>
         </section>
@@ -213,6 +213,20 @@
           </div>
         </section>
       </div>
+
+      <section class="view-panel" id="otherExpensesView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">其他費用</p>
+              <h2>所有其他費用</h2>
+            </div>
+            <button class="primary-button" type="button" id="openExtraExpenseModalBtn">新增其他費用</button>
+          </div>
+          <p class="settlement-note">進行中的費用會和場次一起出現在「誰要付錢」的結算裡</p>
+          <div id="otherExpenseList" class="history-list"></div>
+        </section>
+      </section>
 
       <section class="view-panel" id="peopleView">
         <section class="panel">
