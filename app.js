@@ -1209,6 +1209,10 @@ function openEventModal() {
   if (!elements.eventModal) return;
   syncCustomOption(elements.sportSelect, elements.sportCustom);
   syncCustomOption(elements.locationSelect, elements.locationCustom);
+  // Reuse the date selected in the calendar so users do not have to pick it again.
+  if (elements.eventForm?.elements.date) {
+    elements.eventForm.elements.date.value = selectedCalendarDate || dateKey(new Date());
+  }
   elements.eventModal.hidden = false;
   elements.eventForm.elements.date?.focus();
 }
